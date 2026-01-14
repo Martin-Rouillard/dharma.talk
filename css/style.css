@@ -419,6 +419,7 @@ h1 {
     text-transform: uppercase;
     letter-spacing: 0.1em;
     transition: background 0.2s ease, transform 0.2s ease;
+    white-space: nowrap;
 }
 
 .donation-btn:hover {
@@ -444,6 +445,7 @@ h1 {
 .teacher-hero-stats {
     font-size: 0.9rem;
     color: var(--text-secondary);
+    white-space: nowrap;
 }
 
 .vanity-url-btn {
