@@ -5,6 +5,29 @@ const URL_PARAMS = new URLSearchParams(window.location.search);
 const DEBUG_AUDIO = URL_PARAMS.has('debugAudio');
 const DISABLE_HIDDEN_EPISODES_STORAGE = URL_PARAMS.has('debugNoHideStorage');
 
+// Slugify teacher name for vanity URL
+function slugifyName(name) {
+    return name.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '');
+}
+
+// Copy vanity URL to clipboard
+function copyVanityUrl(slug) {
+    const url = `https://dharma.talk/${slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = document.querySelector('.vanity-url-btn');
+        if (btn) {
+            btn.classList.add('copied');
+            const textEl = btn.querySelector('.vanity-url-text');
+            const originalText = textEl.textContent;
+            textEl.textContent = 'Copied!';
+            setTimeout(() => {
+                btn.classList.remove('copied');
+                textEl.textContent = originalText;
+            }, 1500);
+        }
+    });
+}
+
 // Platform detection (used only for performance workarounds)
 const IS_IOS =
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -531,6 +554,9 @@ async function loadFeed(url, teacherInfo = null, isInitialLoad = true) {
                                 : ''
                             }
                             <span class="teacher-hero-stats">${teacherInfo?.talk_count || episodes.length} talks</span>
+                            <button class="vanity-url-btn" onclick="copyVanityUrl('${slugifyName(teacherName)}')" title="Copy link">
+                                <span class="vanity-url-text">dharma.talk/${slugifyName(teacherName)}</span>
+                            </button>
                         </div>
                         ${description ? `<p class="teacher-hero-description">${description}</p>` : ''}
                     </div>

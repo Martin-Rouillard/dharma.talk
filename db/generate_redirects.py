@@ -54,8 +54,8 @@ def generate_redirects():
         
         used_slugs[slug] = tid
         
-        # Redirect to hash-based URL (SPA style)
-        redirects.append(f"/{slug}  /#teacher/{tid}  302")
+        # Redirect to query param URL (SPA style)
+        redirects.append(f"/{slug}  /?teacher={tid}  302")
     
     # Sort alphabetically
     redirects.sort()
