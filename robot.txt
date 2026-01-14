@@ -1,0 +1,52 @@
+# robots.txt pour Dharma.talk
+# Dernière mise à jour: 2026-01-06
+
+# Règles pour tous les robots
+User-agent: *
+
+# Pages publiques autorisées
+Allow: /
+Allow: /index.html
+
+
+# Ressources statiques autorisées
+Allow: /img/
+Allow: /css/
+
+
+# Pages privées/protégées - bloquées
+Disallow: /js
+Disallow: /design
+Disallow: /db
+
+
+# Fichiers de configuration
+Disallow: /*.pxd
+Disallow: /*.py
+
+
+# Délai entre les requêtes (en secondes)
+Crawl-delay: 1
+
+# Sitemap
+Sitemap: https://dharma.talk/sitemap.xml
+
+# Règles spécifiques pour Googlebot
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+# Règles spécifiques pour Bingbot
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# Règles spécifiques pour les bots de réseaux sociaux
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /

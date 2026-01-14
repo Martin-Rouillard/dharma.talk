@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000000">
+    
+    <!-- Primary SEO Meta Tags -->
+    <title>Dharma.Talk - Free Buddhist Dharma Talks & Guided Meditations</title>
+    <meta name="title" content="Dharma.Talk - Free Buddhist Dharma Talks & Guided Meditations">
+    <meta name="description" content="Listen to thousands of free dharma talks and guided meditations from renowned Buddhist teachers including Joseph Goldstein, Ajahn Sucitto, Jack Kornfield, Tara Brach, Pascal Auclair, and many more. Stream mindfulness teachings anytime, anywhere.">
+    <meta name="keywords" content="dharma talks, buddhist meditation, mindfulness, Joseph Goldstein, Ajahn Sucitto, Jack Kornfield, Tara Brach, Pascal Auclair, vipassana, insight meditation, free meditation, buddhist teachings, dharmaseed, guided meditation, buddhism, spiritual talks, meditation app">
+    <meta name="author" content="Dharma.Talk">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://dharma.talk/">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://dharma.talk/">
+    <meta property="og:title" content="Dharma.Talk - Free Buddhist Dharma Talks & Guided Meditations">
+    <meta property="og:description" content="Stream thousands of free dharma talks from Joseph Goldstein, Ajahn Sucitto, Jack Kornfield, Tara Brach, Pascal Auclair and 700+ Buddhist teachers. Your pocket meditation companion.">
+    <meta property="og:image" content="https://dharma.talk/img/og-image.jpg">
+    <meta property="og:site_name" content="Dharma.Talk">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://dharma.talk/">
+    <meta property="twitter:title" content="Dharma.Talk - Free Buddhist Dharma Talks & Guided Meditations">
+    <meta property="twitter:description" content="Stream thousands of free dharma talks from renowned Buddhist teachers. Mindfulness teachings for your daily practice.">
+    <meta property="twitter:image" content="https://dharma.talk/img/og-image.jpg">
+    
+    <!-- Mobile App Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dharma.Talk">
+    <meta name="application-name" content="Dharma.Talk">
+    
+    <!-- Favicons & Manifest -->
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Structured Data - WebSite -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Dharma.Talk",
+        "alternateName": ["Dharma Talk", "DharmaTalk"],
+        "url": "https://dharma.talk/",
+        "description": "Free Buddhist dharma talks and guided meditations from renowned teachers",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://dharma.talk/?search={search_term_string}",
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
+    
+    <!-- Structured Data - MobileApplication -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "MobileApplication",
+        "name": "Dharma.Talk",
+        "operatingSystem": "Any",
+        "applicationCategory": "LifestyleApplication",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "description": "Stream thousands of free Buddhist dharma talks and guided meditations from teachers like Joseph Goldstein, Ajahn Sucitto, Jack Kornfield, Tara Brach, and Pascal Auclair.",
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "ratingCount": "1000"
+        }
+    }
+    </script>
+    
+    <!-- Structured Data - Organization -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Dharma.Talk",
+        "url": "https://dharma.talk/",
+        "logo": "https://dharma.talk/img/logo.png",
+        "description": "A free mobile-friendly player for Buddhist dharma talks sourced from Dharmaseed.org",
+        "sameAs": []
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link rel="preconnect" href="https://dharmaseed.org">
+    <link rel="preconnect" href="https://media.dharmaseed.org">
+    <link rel="dns-prefetch" href="https://dharmaseed.org">
+    <link rel="dns-prefetch" href="https://media.dharmaseed.org">
+    
+    <link rel="stylesheet" href="/css/style.css?v=1.0.4">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="https://donorbox.org/dharma-seed-support" target="_blank" class="donate-link">Support Dharmaseed.org in its mission to keep offering free Dharma teachings.</a>
+
+            <div class="logo-icon">
+               <img src="img/icon.svg" class="logo-icon" alt="Dharma.Talk Logo">
+            </div>
+        </header>
+
+        <div class="search-section">
+            <button type="button" id="searchIconBtn" class="search-icon-btn" onclick="handleSearchIconClick()" aria-label="Search or clear">
+                <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="M21 21l-4.35-4.35"></path>
+                </svg>
+                <svg class="icon-clear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+            <div class="search-row">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search for teachers..." autocomplete="off">
+                <button type="button" id="recentFilterBtn" class="recent-filter-btn" onclick="toggleRecentFilter()" aria-label="Filter recent teachers">
+                                        <span class="recent-label">Most recent</span>
+
+              
+                </button>
+            </div>
+        </div>
+
+        <div class="popular-section" id="popularSection">
+            <div class="popular-grid" id="popularGrid"></div>
+        </div>
+
+        <div id="teacherInfo"></div>
+        <div id="content"></div>
+    </div>
+
+    <div class="player" id="player">
+        <div class="player-inner">
+            <div class="player-track">
+                <img src="https://cerulean-rugelach-d536b1.netlify.app/" alt="" class="player-track-photo" id="playerPhoto">
+                <div class="player-track-info">
+                    <div class="player-title" id="playerTitle">-</div>
+                    <div class="player-artist" id="playerArtist">-</div>
+                </div>
+            </div>
+            <div class="player-controls">
+                <div class="player-title-mobile" id="playerTitleMobile">-</div>
+                <div class="player-buttons-row">
+                    <div class="player-buttons">
+                    <button class="control-btn" onclick="audio.currentTime = 0" title="Skip to start">
+                        <svg viewBox="0 -960 960 960"><path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z"/></svg>
+                    </button>
+                    <button class="control-btn" onclick="audio.currentTime = Math.max(0, audio.currentTime - 15)">
+                        <svg viewBox="0 -960 960 960"><path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Z"/></svg>
+                    </button>
+                    <button class="play-btn" id="playBtn" onclick="togglePlay()">
+                        <svg id="playIcon" viewBox="0 -960 960 960">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                        </svg>
+                        <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;">
+                            <rect x="6" y="4" width="4" height="16"></rect>
+                            <rect x="14" y="4" width="4" height="16"></rect>
+                        </svg>
+                    </button>
+                    <button class="control-btn" onclick="audio.currentTime = Math.min(audio.duration, audio.currentTime + 15)">
+                        <svg viewBox="0 -960 960 960"><path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240Z"/></svg>
+                    </button>
+                    <button class="share-btn" onclick="shareEpisode()" title="Share">
+                        <svg viewBox="0 -960 960 960"><path d="M680-80q-50 0-85-35t-35-85q0-6 3-28L282-392q-16 15-37 23.5t-45 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q24 0 45 8.5t37 23.5l281-164q-2-7-2.5-13.5T560-760q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-24 0-45-8.5T598-672L317-508q2 7 2.5 13.5t.5 14.5q0 8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z"/></svg>
+                    </button>
+                    </div>
+                </div>
+                <div class="progress-wrapper">
+                    <span class="player-time" id="currentTime">0:00</span>
+                    <div class="progress-bar" id="progressBar" onclick="seek(event)">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="player-time right" id="totalTime">0:00</span>
+                </div>
+            </div>
+            <div class="player-options">
+                <button class="control-btn" onclick="scrollToTop()" title="Back to top">
+                    <svg viewBox="0 0 24 24"><path d="M12 4l-8 8h5v8h6v-8h5l-8-8z"></path></svg>
+                </button>
+                <button class="share-btn" onclick="shareEpisode()" title="Share">
+                    <svg viewBox="0 -960 960 960"><path d="M680-80q-50 0-85-35t-35-85q0-6 3-28L282-392q-16 15-37 23.5t-45 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q24 0 45 8.5t37 23.5l281-164q-2-7-2.5-13.5T560-760q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-24 0-45-8.5T598-672L317-508q2 7 2.5 13.5t.5 14.5q0 8-.5 14.5T317-452l281 164q16-15 37-23.5t45-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z"/></svg>
+                </button>
+                <button class="speed-btn" id="speedBtn" onclick="cycleSpeed()">1x</button>
+                <div class="volume-control">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color: var(--text-secondary)">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"></path>
+                    </svg>
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.1" value="1" onchange="audio.volume = this.value">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audio" preload="none"></audio>
+
+    <script src="/js/app.js?v=1.0.4"></script>
+
+
+</body></html>
