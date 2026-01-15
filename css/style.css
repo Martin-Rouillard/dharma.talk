@@ -682,6 +682,11 @@ h1 {
     color: var(--text-muted);
 }
 
+div#content {
+    overflow: scroll;
+    max-height: 60vh;
+}
+
 /* Playlist search */
 .playlist-search {
     padding: 0 2rem;
@@ -1535,6 +1540,7 @@ h1 {
         gap: 0.5rem;
         margin: 0 0.5rem;
         width: 100%;
+        padding: 0;
     }
 
     .episode-number,
@@ -1554,7 +1560,17 @@ h1 {
     .playlist-search-icon {
         display: none;
     }
-}
+    
+    .playlist-search-icon-btn{
+        display: none;
+    }
+    .search-icon-btn {
+        display: none;
+    }
+
+    .vanity-url-btn{
+        display: none;
+    }
 
 body.player-active .container {
     padding-bottom: 180px;
