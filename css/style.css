@@ -1535,12 +1535,15 @@ div#content {
         height: 80px;
     }
 
+    .episodes {
+        padding: 0;
+    }
+
     .episode {
         grid-template-columns: 1fr auto;
         gap: 0.5rem;
         margin: 0 0.5rem;
         width: 100%;
-        padding: 0;
     }
 
     .episode-number,
