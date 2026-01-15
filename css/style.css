@@ -1537,6 +1537,7 @@ div#content {
 
     .episodes {
         padding: 0;
+        overflow-x: hidden;
     }
 
     .episode {
