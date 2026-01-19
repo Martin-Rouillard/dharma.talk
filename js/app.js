@@ -1,6 +1,61 @@
 // Teachers database - loaded from external JSON
 let TEACHERS_DB = [];
 
+// Teachers data caching
+const TEACHERS_CACHE_KEY = 'dharmaseed_teachers_cache';
+const TEACHERS_TIMESTAMP_KEY = 'dharmaseed_teachers_timestamp';
+const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+function getTeachersCache() {
+    try {
+        const cached = localStorage.getItem(TEACHERS_CACHE_KEY);
+        const timestamp = localStorage.getItem(TEACHERS_TIMESTAMP_KEY);
+        if (cached && timestamp) {
+            return { teachers: JSON.parse(cached), timestamp: parseInt(timestamp) };
+        }
+    } catch (e) {
+        console.warn('Failed to read teachers cache:', e);
+    }
+    return null;
+}
+
+function setTeachersCache(teachers) {
+    try {
+        localStorage.setItem(TEACHERS_CACHE_KEY, JSON.stringify(teachers));
+        localStorage.setItem(TEACHERS_TIMESTAMP_KEY, Date.now().toString());
+    } catch (e) {
+        console.warn('Failed to save teachers cache:', e);
+    }
+}
+
+function isCacheStale(timestamp) {
+    return Date.now() - timestamp > CACHE_MAX_AGE;
+}
+
+// Background refresh: update cache without disrupting playback
+async function refreshTeachersInBackground() {
+    try {
+        const response = await fetch('db/dharmaseed_teachers.json', { cache: 'no-store' });
+        const data = await response.json();
+        setTeachersCache(data.teachers);
+        console.log('Teachers cache refreshed in background');
+        
+        // If user is NOT actively playing, update the in-memory data
+        if (audio.paused) {
+            TEACHERS_DB = data.teachers;
+            console.log('Updated in-memory teachers data');
+        } else {
+            // Schedule update for when audio pauses
+            audio.addEventListener('pause', function onPause() {
+                TEACHERS_DB = data.teachers;
+                console.log('Updated in-memory teachers data after pause');
+            }, { once: true });
+        }
+    } catch (e) {
+        console.warn('Background refresh failed:', e);
+    }
+}
+
 const URL_PARAMS = new URLSearchParams(window.location.search);
 const DEBUG_AUDIO = URL_PARAMS.has('debugAudio');
 const DISABLE_HIDDEN_EPISODES_STORAGE = URL_PARAMS.has('debugNoHideStorage');
@@ -1338,10 +1393,13 @@ async function init() {
     grid.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading teachers...</p></div>';
     
     try {
-        const response = await fetch('db/dharmaseed_teachers.json');
+        // Always fetch fresh data (bypass browser cache)
+        const response = await fetch('db/dharmaseed_teachers.json', { cache: 'no-store' });
         const data = await response.json();
         TEACHERS_DB = data.teachers;
-        console.log(`Loaded ${TEACHERS_DB.length} teachers`);
+        setTeachersCache(data.teachers);
+        console.log(`Loaded ${TEACHERS_DB.length} teachers from network`);
+        
         renderPopularTeachers();
         
         // Set up teachers infinite scroll
