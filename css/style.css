@@ -167,6 +167,7 @@ header {
     color: var(--accent);
 }
 
+
 .sub-filters {
     display: flex;
     justify-content: center;
@@ -1990,6 +1991,10 @@ h1 {
 
     body.player-active .container {
         padding-bottom: 180px;
+    }
+
+    #otherFilter{
+        display: none;
     }
 }
 
