@@ -177,7 +177,7 @@ header {
     padding: 0.25rem 0.5rem;
     transition: all 0.2s ease;
     position: relative;
-    border-radius: 4px;
+    white-space: nowrap;
 }
 
 .sub-filters .filter-item:hover {
@@ -1944,6 +1944,11 @@ h1 {
     .vanity-url-btn{
         display: none;
     }
+
+    .tab-menu-dual {
+        padding: 1rem 0;
+    }
+
 
 body.player-active .container {
     padding-bottom: 180px;
