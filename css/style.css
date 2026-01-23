@@ -375,9 +375,7 @@ header {
     font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 0.25rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+
 }
 
 .talk-description {
@@ -434,7 +432,7 @@ header {
 }
 
 .talk-date {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     color: var(--text-muted);
 }
 
@@ -1949,10 +1947,44 @@ h1 {
         padding: 1rem 0;
     }
 
+    .talks-section {
+        padding: 0;
+    }
 
-body.player-active .container {
-    padding-bottom: 180px;
-}
+    .talk-right {
+        display: flex;
+        flex-direction: column-reverse;
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        text-align: right;
+        gap: 0;
+    }
+
+    .talk-date, .talk-duration {
+        font-size: .75rem;
+    }
+
+    .talk-item {
+        padding: 1rem;
+        cursor: pointer;
+        transition: background 0.3s;
+        display: flex;
+        grid-template-columns: 48px 1fr;
+        gap: 1rem;
+        align-items: stretch;
+        position: relative;
+        overflow: hidden;
+        justify-items: center;
+        justify-content: center;
+        align-content: space-between;
+        flex-direction: column;
+
+    }
+
+    body.player-active .container {
+        padding-bottom: 180px;
+    }
 }
 
 /* Toast notification */
