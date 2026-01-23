@@ -15,9 +15,13 @@ To get details for a specific item, append the ID: /api/1/teachers/96/
 
 import json
 import time
+import os
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 import requests
+
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 BASE = "https://dharmaseed.org"
 API_BASE = f"{BASE}/api/1"
@@ -443,12 +447,14 @@ def main():
             print("Updating teachers only (using cached talk counts)...")
             talk_counts = load_talk_counts()
             teachers = fetch_teachers(talk_counts=talk_counts)
-            save_to_json(teachers, "dharmaseed_teachers.json", "teachers")
+            output_file = os.path.join(SCRIPT_DIR, "dharmaseed_teachers.json")
+            save_to_json(teachers, output_file, "teachers")
             return
     
     # Default: single pass - fetch teachers + count talks together
     teachers = fetch_teachers_with_counts()
-    save_to_json(teachers, "dharmaseed_teachers.json", "teachers")
+    output_file = os.path.join(SCRIPT_DIR, "dharmaseed_teachers.json")
+    save_to_json(teachers, output_file, "teachers")
     
     # Example: find Joseph Goldstein
     jg = [t for t in teachers if "joseph goldstein" in t.name.lower()]

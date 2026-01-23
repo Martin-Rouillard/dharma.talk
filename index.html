@@ -101,6 +101,7 @@
     <link rel="dns-prefetch" href="https://dharmaseed.org">
     <link rel="dns-prefetch" href="https://media.dharmaseed.org">
     
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css?v=1.0.4">
 </head>
 <body>
@@ -108,10 +109,31 @@
         <header>
             <a href="https://donorbox.org/dharma-seed-support" target="_blank" class="donate-link">Support Dharmaseed.org in its mission to keep offering free Dharma teachings.</a>
 
-            <div class="logo-icon">
+            <div class="logo-icon" style="display: none;">
                <img src="img/icon.svg" class="logo-icon" alt="Dharma.Talk Logo">
             </div>
         </header>
+
+        <nav class="tab-menu-dual">
+            <div class="tab-column active" data-tab="teachers">
+                <span class="material-symbols-outlined tab-icon">self_improvement</span>
+                <button class="tab-header" data-tab="teachers">Teachers</button>
+                <div class="sub-filters" id="filterTabs">
+                    <button class="filter-item active" data-filter="all" onclick="setTeacherFilter('all')">All</button>
+                    <button class="filter-item" data-filter="recent" onclick="setTeacherFilter('recent')">Active Last 30 days</button>
+                </div>
+            </div>
+            <div class="tab-column" data-tab="talks">
+                <span class="material-symbols-outlined tab-icon">media_output</span>
+                <button class="tab-header" data-tab="talks">Archive</button>
+                <div class="sub-filters" id="talksFilterTabs">
+                    <button class="filter-item" data-filter="all" onclick="setTalksFilter('all')">All</button>
+                    <button class="filter-item" data-filter="talk" onclick="setTalksFilter('talk')">Talk</button>
+                    <button class="filter-item" data-filter="meditation" onclick="setTalksFilter('meditation')">Meditation</button>
+                    <button class="filter-item" data-filter="other" onclick="setTalksFilter('other')">Other</button>
+                </div>
+            </div>
+        </nav>
 
         <div class="search-section">
             <button type="button" id="searchIconBtn" class="search-icon-btn" onclick="handleSearchIconClick()" aria-label="Search or clear">
@@ -125,16 +147,28 @@
             </button>
             <div class="search-row">
                 <input type="text" id="searchInput" class="search-input" placeholder="Search for teachers..." autocomplete="off">
-                <button type="button" id="recentFilterBtn" class="recent-filter-btn" onclick="toggleRecentFilter()" aria-label="Filter recent teachers">
-                                        <span class="recent-label">Most recent</span>
-
-              
-                </button>
             </div>
         </div>
 
         <div class="popular-section" id="popularSection">
             <div class="popular-grid" id="popularGrid"></div>
+        </div>
+
+        <!-- Talks Section (hidden by default) -->
+        <div class="talks-section" id="talksSection" style="display: none;">
+            <div class="talks-search-section">
+                <button type="button" class="search-icon-btn" id="talksSearchIconBtn" onclick="handleTalksSearchIconClick()">
+                    <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="M21 21l-4.35-4.35"></path>
+                    </svg>
+                    <svg class="icon-clear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+                <input type="text" id="talksSearchInput" class="search-input" placeholder="Search audio files..." autocomplete="off" oninput="handleTalksSearch(this.value)">
+            </div>
+            <div class="talks-list" id="talksList"></div>
         </div>
 
         <div id="teacherInfo"></div>

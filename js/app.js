@@ -1,10 +1,22 @@
 // Teachers database - loaded from external JSON
 let TEACHERS_DB = [];
 
-// Teachers data caching
+// Talks database - loaded from external JSON
+let TALKS_DB = [];
+let talksSearchQuery = '';
+let talksSearchDebounceTimer = null;
+let currentTab = 'teachers'; // 'teachers' or 'talks'
+let currentPlayingTalk = null; // For talks tab playback
+
+// Teachers data caching (localStorage)
 const TEACHERS_CACHE_KEY = 'dharmaseed_teachers_cache';
 const TEACHERS_TIMESTAMP_KEY = 'dharmaseed_teachers_timestamp';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+// Talks data caching (IndexedDB - for large datasets)
+const TALKS_DB_NAME = 'dharmaseed_talks_db';
+const TALKS_STORE_NAME = 'talks';
+const TALKS_DB_VERSION = 1;
 
 function getTeachersCache() {
     try {
@@ -30,6 +42,101 @@ function setTeachersCache(teachers) {
 
 function isCacheStale(timestamp) {
     return Date.now() - timestamp > CACHE_MAX_AGE;
+}
+
+// IndexedDB helpers for talks cache
+function openTalksDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(TALKS_DB_NAME, TALKS_DB_VERSION);
+        
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(TALKS_STORE_NAME)) {
+                db.createObjectStore(TALKS_STORE_NAME, { keyPath: 'key' });
+            }
+        };
+    });
+}
+
+async function getTalksCache() {
+    try {
+        const db = await openTalksDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(TALKS_STORE_NAME, 'readonly');
+            const store = transaction.objectStore(TALKS_STORE_NAME);
+            const request = store.get('talks_data');
+            
+            request.onerror = () => {
+                db.close();
+                reject(request.error);
+            };
+            request.onsuccess = () => {
+                db.close();
+                const result = request.result;
+                if (result && result.talks && result.timestamp) {
+                    resolve({ talks: result.talks, timestamp: result.timestamp });
+                } else {
+                    resolve(null);
+                }
+            };
+        });
+    } catch (e) {
+        console.warn('Failed to read talks cache:', e);
+        return null;
+    }
+}
+
+async function setTalksCache(talks) {
+    try {
+        const db = await openTalksDB();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(TALKS_STORE_NAME, 'readwrite');
+            const store = transaction.objectStore(TALKS_STORE_NAME);
+            const request = store.put({
+                key: 'talks_data',
+                talks: talks,
+                timestamp: Date.now()
+            });
+            
+            request.onerror = () => {
+                db.close();
+                reject(request.error);
+            };
+            request.onsuccess = () => {
+                db.close();
+                resolve();
+            };
+        });
+    } catch (e) {
+        console.warn('Failed to save talks cache:', e);
+    }
+}
+
+// Background refresh for talks: update cache without disrupting playback
+async function refreshTalksInBackground() {
+    try {
+        const response = await fetch('db/dharmaseed_talks.json', { cache: 'no-store' });
+        const talks = await response.json();
+        await setTalksCache(talks);
+        console.log('Talks cache refreshed in background');
+        
+        // If user is NOT actively playing, update the in-memory data
+        if (audio.paused) {
+            TALKS_DB = talks;
+            console.log('Updated in-memory talks data');
+        } else {
+            // Schedule update for when audio pauses
+            audio.addEventListener('pause', function onPause() {
+                TALKS_DB = talks;
+                console.log('Updated in-memory talks data after pause');
+            }, { once: true });
+        }
+    } catch (e) {
+        console.warn('Talks background refresh failed:', e);
+    }
 }
 
 // Background refresh: update cache without disrupting playback
@@ -59,6 +166,46 @@ async function refreshTeachersInBackground() {
 const URL_PARAMS = new URLSearchParams(window.location.search);
 const DEBUG_AUDIO = URL_PARAMS.has('debugAudio');
 const DISABLE_HIDDEN_EPISODES_STORAGE = URL_PARAMS.has('debugNoHideStorage');
+
+// Toast notification system
+let activeToast = null;
+function showToast(message, duration = 0) {
+    // Remove existing toast if any
+    if (activeToast) {
+        activeToast.remove();
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `
+        <div class="toast-spinner"></div>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(toast);
+    activeToast = toast;
+    
+    // Trigger animation
+    requestAnimationFrame(() => toast.classList.add('show'));
+    
+    // Auto-hide if duration specified
+    if (duration > 0) {
+        setTimeout(() => hideToast(), duration);
+    }
+    
+    return toast;
+}
+
+function hideToast() {
+    if (activeToast) {
+        activeToast.classList.remove('show');
+        setTimeout(() => {
+            if (activeToast) {
+                activeToast.remove();
+                activeToast = null;
+            }
+        }, 300);
+    }
+}
 
 // Slugify teacher name for vanity URL
 function slugifyName(name) {
@@ -207,22 +354,44 @@ function getEpisodeProgressPercent(talkId) {
 }
 
 function savePlaybackState() {
-    if (!currentEpisode || !currentTeacherId) return;
-    const state = {
-        teacherId: currentTeacherId,
-        talkId: currentEpisode.id,
-        talkTitle: currentEpisode.title,
-        teacherName: window.currentTeacherInfo?.name || '',
-        position: audio.currentTime,
-        duration: audio.duration || 0,
-        timestamp: Date.now()
-    };
-    localStorage.setItem(PLAYBACK_STORAGE_KEY, JSON.stringify(state));
-    
-    // Also save episode progress
-    if (audio.duration > 0) {
-        const percent = (audio.currentTime / audio.duration) * 100;
-        saveEpisodeProgress(currentEpisode.id, percent, audio.currentTime, audio.duration);
+    // Handle teacher playlist playback
+    if (currentEpisode && currentTeacherId) {
+        const state = {
+            teacherId: currentTeacherId,
+            talkId: currentEpisode.id,
+            talkTitle: currentEpisode.title,
+            teacherName: window.currentTeacherInfo?.name || '',
+            position: audio.currentTime,
+            duration: audio.duration || 0,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(PLAYBACK_STORAGE_KEY, JSON.stringify(state));
+        
+        // Also save episode progress
+        if (audio.duration > 0) {
+            const percent = (audio.currentTime / audio.duration) * 100;
+            saveEpisodeProgress(currentEpisode.id, percent, audio.currentTime, audio.duration);
+        }
+    }
+    // Handle archive talk playback
+    else if (currentPlayingTalk) {
+        const teacher = getTalkTeacher(currentPlayingTalk.teacher_id);
+        const state = {
+            talkId: currentPlayingTalk.id,
+            talkTitle: currentPlayingTalk.title,
+            teacherName: teacher?.name || 'Unknown Teacher',
+            position: audio.currentTime,
+            duration: audio.duration || 0,
+            timestamp: Date.now(),
+            isArchiveTalk: true
+        };
+        localStorage.setItem(PLAYBACK_STORAGE_KEY, JSON.stringify(state));
+        
+        // Also save episode progress
+        if (audio.duration > 0) {
+            const percent = (audio.currentTime / audio.duration) * 100;
+            saveEpisodeProgress(currentPlayingTalk.id, percent, audio.currentTime, audio.duration);
+        }
     }
 }
 
@@ -388,14 +557,32 @@ function clearTeacherSearch() {
     searchInput.focus();
 }
 
-// Toggle recent filter (last month only)
-function toggleRecentFilter() {
-    recentFilterActive = !recentFilterActive;
-    const btn = document.getElementById('recentFilterBtn');
-    if (btn) {
-        btn.classList.toggle('active', recentFilterActive);
+// Set teacher filter (all or recent)
+function setTeacherFilter(filter) {
+    recentFilterActive = (filter === 'recent');
+    
+    // Update teacher filter tab UI
+    document.querySelectorAll('#filterTabs .filter-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    
+    // Clear talks filter active state
+    document.querySelectorAll('#talksFilterTabs .filter-item').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Switch to teachers tab if not active
+    if (currentTab !== 'teachers') {
+        switchTab('teachers', false);
     }
+    
+    // Always render with the new filter
     renderPopularTeachers(false);
+}
+
+// Toggle recent filter (last month only) - legacy function
+function toggleRecentFilter() {
+    setTeacherFilter(recentFilterActive ? 'all' : 'recent');
 }
 
 // Update search icon state (search vs clear)
@@ -413,16 +600,653 @@ searchInput.addEventListener('keydown', (e) => {
     }
 });
 
+// ============================================
+// TALKS TAB FUNCTIONALITY
+// ============================================
+
+// Talks infinite scroll state
+let talksDisplayed = 0;
+const TALKS_BATCH_SIZE = 30;
+let isLoadingMoreTalks = false;
+let sortedTalks = [];
+let talksLoaded = false;
+let talksFilterActive = 'all'; // 'all', 'talk', 'meditation', 'other'
+let currentPlaceholderCount = 0; // Track current displayed count for animation
+let countAnimationFrame = null; // Track animation frame for cancellation
+
+// Animate counter from current value to target value
+function animateCounter(targetCount, totalCount, suffix, duration = 1000) {
+    const searchInput = document.getElementById('talksSearchInput');
+    if (!searchInput) return;
+    
+    // Cancel any ongoing animation
+    if (countAnimationFrame) {
+        cancelAnimationFrame(countAnimationFrame);
+    }
+    
+    const startCount = currentPlaceholderCount;
+    const startTime = performance.now();
+    const diff = targetCount - startCount;
+    
+    // If no change needed, just set it
+    if (diff === 0) {
+        return;
+    }
+    
+    function updateCounter(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Ease out cubic for smooth deceleration
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentValue = Math.round(startCount + diff * easeOut);
+        
+        currentPlaceholderCount = currentValue;
+        
+        // Build placeholder text
+        if (totalCount !== null && totalCount !== currentValue) {
+            searchInput.placeholder = `${currentValue} of ${totalCount} ${suffix}`;
+        } else {
+            searchInput.placeholder = `Search ${currentValue} ${suffix}`;
+        }
+        
+        if (progress < 1) {
+            countAnimationFrame = requestAnimationFrame(updateCounter);
+        } else {
+            countAnimationFrame = null;
+        }
+    }
+    
+    countAnimationFrame = requestAnimationFrame(updateCounter);
+}
+
+// Preload talks data in background for episode enrichment (no UI)
+async function preloadTalksData() {
+    if (talksLoaded || TALKS_DB.length > 0) return;
+    
+    try {
+        // Try to load from IndexedDB cache first
+        const cached = await getTalksCache();
+        if (cached) {
+            TALKS_DB = cached.talks;
+            console.log(`Preloaded ${TALKS_DB.length} talks from cache`);
+            
+            // If cache is stale, refresh in background
+            if (isCacheStale(cached.timestamp)) {
+                console.log('Talks cache is stale, refreshing in background...');
+                showToast('Updating database...');
+                await refreshTalksInBackground();
+                hideToast();
+            }
+            return;
+        }
+        
+        // No cache, fetch from server
+        showToast('Downloading database...');
+        const response = await fetch('db/dharmaseed_talks.json', { cache: 'no-store' });
+        const allTalks = await response.json();
+        TALKS_DB = allTalks;
+        
+        // Save to cache
+        await setTalksCache(allTalks);
+        hideToast();
+        console.log(`Preloaded ${TALKS_DB.length} talks for enrichment (cached)`);
+    } catch (error) {
+        hideToast();
+        console.warn('Failed to preload talks data:', error);
+    }
+}
+
+// Load talks data - progressive loading for large datasets
+async function loadTalksData() {
+    if (talksLoaded) return;
+    
+    const talksList = document.getElementById('talksList');
+    talksList.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading talks...</p></div>';
+    
+    try {
+        // Use preloaded data if available
+        let allTalks;
+        if (TALKS_DB.length > 0) {
+            allTalks = TALKS_DB;
+            console.log('Using preloaded talks data');
+        } else {
+            // Try IndexedDB cache first
+            const cached = await getTalksCache();
+            if (cached) {
+                allTalks = cached.talks;
+                TALKS_DB = allTalks;
+                console.log(`Loaded ${TALKS_DB.length} talks from cache`);
+                
+                // If cache is stale, refresh in background
+                if (isCacheStale(cached.timestamp)) {
+                    console.log('Talks cache is stale, refreshing in background...');
+                    refreshTalksInBackground();
+                }
+            } else {
+                // No cache, fetch from server
+                const response = await fetch('db/dharmaseed_talks.json', { cache: 'no-store' });
+                allTalks = await response.json();
+                TALKS_DB = allTalks;
+                
+                // Save to cache
+                await setTalksCache(allTalks);
+                console.log(`Loaded ${TALKS_DB.length} talks from server (cached)`);
+            }
+        }
+        
+        // Load first batch immediately for fast initial render
+        talksLoaded = true;
+        
+        console.log(`Loaded ${TALKS_DB.length} talks`);
+        // Don't update placeholder here - let renderTalksList handle it based on current filter
+        renderTalksList();
+    } catch (error) {
+        console.error('Error loading talks database:', error);
+        talksList.innerHTML = `
+            <div class="loading">
+                <p>Could not load talks database.</p>
+            </div>
+        `;
+    }
+}
+
+// Get teacher info for talks
+function getTalkTeacher(teacherId) {
+    return TEACHERS_DB.find(t => t.id === teacherId) || null;
+}
+
+// Get talk info from TALKS_DB by ID
+function getTalkInfo(talkId) {
+    return TALKS_DB.find(t => t.id === talkId) || null;
+}
+
+// Enrich episode with data from talks.json (recording_type, description)
+function enrichEpisodeFromTalksDB(episode) {
+    const talkInfo = getTalkInfo(episode.id);
+    if (talkInfo) {
+        // Use description from talks.json if RSS description is empty or shorter
+        if (talkInfo.description && (!episode.description || talkInfo.description.length > episode.description.length)) {
+            episode.description = talkInfo.description;
+        }
+        // Add recording_type from talks.json
+        episode.recording_type = talkInfo.recording_type || '';
+    }
+    return episode;
+}
+
+// Get initials for teacher placeholder
+function getTalkInitials(name) {
+    if (!name) return '?';
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+}
+
+// Highlight search terms in text (whole words only)
+function highlightSearchTerms(text, searchQuery) {
+    if (!text || !searchQuery || searchQuery.length < 3) return text || '';
+    const words = searchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return text;
+    
+    // Escape special regex characters and create pattern with word boundaries
+    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = new RegExp(`\\b(${escapedWords.join('|')})\\b`, 'gi');
+    return text.replace(pattern, '<mark class="search-highlight">$1</mark>');
+}
+
+// Truncate text with ellipsis
+function truncateText(text, maxLength) {
+    if (!text || text.length <= maxLength) return text || '';
+    return text.substring(0, maxLength).trim() + '...';
+}
+
+// Format talk duration from minutes
+function formatTalkDuration(minutes) {
+    if (!minutes) return '';
+    const totalSeconds = Math.round(minutes * 60);
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    if (hrs > 0) {
+        return `${hrs}h ${mins}m`;
+    }
+    return `${mins}m`;
+}
+
+// Format talk date
+function formatTalkDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } catch {
+        return dateStr;
+    }
+}
+
+// Set talks filter (all, talk, meditation, other)
+function setTalksFilter(filter) {
+    talksFilterActive = filter;
+    
+    // Update talks filter tab UI
+    document.querySelectorAll('#talksFilterTabs .filter-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    
+    // Clear teacher filter active state
+    document.querySelectorAll('#filterTabs .filter-item').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Switch to talks tab if not active
+    if (currentTab !== 'talks') {
+        switchTab('talks', false);
+    }
+    
+    // Always render with the new filter (if talks are loaded)
+    if (talksLoaded) {
+        renderTalksList(false);
+    }
+}
+
+// Render talks list with infinite scroll support
+function renderTalksList(append = false) {
+    if (!append) {
+        // Start with all talks
+        let filteredTalks = [...TALKS_DB];
+        
+        // Apply recording type filter
+        if (talksFilterActive !== 'all') {
+            filteredTalks = filteredTalks.filter(talk => {
+                const recordingType = (talk.recording_type || '').toLowerCase();
+                if (talksFilterActive === 'talk') {
+                    return recordingType === 'talk';
+                } else if (talksFilterActive === 'meditation') {
+                    return recordingType === 'meditation' || recordingType === 'guided meditation';
+                } else if (talksFilterActive === 'other') {
+                    return recordingType !== 'talk' && recordingType !== 'meditation' && recordingType !== 'guided meditation';
+                }
+                return true;
+            });
+        }
+        
+        // Apply search filter if query exists
+        if (talksSearchQuery.length >= 3) {
+            const words = talksSearchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+            filteredTalks = filteredTalks.filter(talk => {
+                const teacher = getTalkTeacher(talk.teacher_id);
+                const teacherName = (teacher?.name || '').toLowerCase();
+                const title = talk.title.toLowerCase();
+                const recordingType = (talk.recording_type || '').toLowerCase();
+                const description = (talk.description || '').toLowerCase();
+                const recDate = (talk.rec_date || '').toLowerCase();
+                
+                // Every word must match at least one property (whole word match)
+                return words.every(word => {
+                    const wordPattern = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                    return wordPattern.test(title) || 
+                        wordPattern.test(teacherName) ||
+                        wordPattern.test(recordingType) ||
+                        wordPattern.test(description) ||
+                        wordPattern.test(recDate);
+                });
+            });
+        }
+        
+        // Sort by date (most recent first)
+        filteredTalks.sort((a, b) => (b.rec_date || '').localeCompare(a.rec_date || ''));
+        
+        sortedTalks = filteredTalks;
+        talksDisplayed = 0;
+        
+        // Update search placeholder with count (animated)
+        // Show filtered count when filter is active or when searching
+        if (talksSearchQuery.length >= 3) {
+            animateCounter(filteredTalks.length, TALKS_DB.length, 'audio files...');
+        } else if (talksFilterActive !== 'all') {
+            const filterLabel = talksFilterActive.charAt(0).toUpperCase() + talksFilterActive.slice(1);
+            animateCounter(filteredTalks.length, null, `${filterLabel} files...`);
+        } else {
+            animateCounter(TALKS_DB.length, null, 'audio files...');
+        }
+    }
+    
+    const talksList = document.getElementById('talksList');
+    
+    if (sortedTalks.length === 0) {
+        talksList.innerHTML = `
+            <div class="loading">
+                <p>No talks found${talksSearchQuery ? ` for "${talksSearchQuery}"` : ''}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Get the next batch
+    const start = talksDisplayed;
+    const end = Math.min(talksDisplayed + TALKS_BATCH_SIZE, sortedTalks.length);
+    const batch = sortedTalks.slice(start, end);
+    
+    // Build HTML for the batch
+    const html = batch.map((talk, i) => {
+        const teacher = getTalkTeacher(talk.teacher_id);
+        const teacherName = teacher?.name || 'Unknown Teacher';
+        const photoUrl = teacher?.photo_url || '';
+        const initials = getTalkInitials(teacherName);
+        const isPlaying = currentPlayingTalk?.id === talk.id;
+        const globalIndex = start + i;
+        
+        return `
+            <div class="talk-item ${isPlaying ? 'playing' : ''}" 
+                 data-id="${talk.id}"
+                 onclick="playTalkFromList(${talk.id})">
+                <div class="talk-photo-wrapper">
+                    ${photoUrl 
+                        ? `<img src="${photoUrl}" alt="${teacherName}" class="talk-teacher-photo" onerror="this.outerHTML='<div class=\\'talk-teacher-placeholder\\'>${initials}</div>'">`
+                        : `<div class="talk-teacher-placeholder">${initials}</div>`
+                    }
+                    <div class="talk-play-overlay">
+                        <svg viewBox="0 0 24 24">
+                            <polygon points="5,3 19,12 5,21"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="talk-main">
+                    <div class="talk-title">${highlightSearchTerms(talk.title, talksSearchQuery)}</div>
+                    ${talk.description ? `<div class="talk-description">${highlightSearchTerms(talk.description, talksSearchQuery)}</div>` : ''}
+                    <div class="talk-meta">
+                        <span class="talk-teacher-name" onclick="event.stopPropagation(); selectTeacher(${talk.teacher_id})">${highlightSearchTerms(teacherName, talksSearchQuery)}</span>
+                        ${talk.recording_type ? `<span class="recording-type-badge">${talk.recording_type}</span>` : ''}
+                    </div>
+                </div>
+                <div class="talk-right">
+                    <span class="talk-duration">${formatTalkDuration(talk.duration_in_minutes)}</span>
+                    <span class="talk-date">${highlightSearchTerms(formatTalkDate(talk.rec_date), talksSearchQuery)}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    if (append) {
+        talksList.insertAdjacentHTML('beforeend', html);
+    } else {
+        talksList.innerHTML = html;
+    }
+    
+    talksDisplayed = end;
+    isLoadingMoreTalks = false;
+}
+
+// Play talk from the talks list
+function playTalkFromList(talkId) {
+    const talk = TALKS_DB.find(t => t.id === talkId);
+    if (!talk) return;
+    
+    // Clear teacher playlist state to avoid conflicts
+    currentEpisode = null;
+    
+    currentPlayingTalk = talk;
+    const teacher = getTalkTeacher(talk.teacher_id);
+    const teacherName = teacher?.name || 'Unknown Teacher';
+    const photoUrl = teacher?.photo_url || '';
+    
+    // Update URL with teacher and talk for proper deep linking
+    updateUrl({ teacher: talk.teacher_id, talk: talkId });
+    
+    // Update player UI
+    document.getElementById('playerTitle').textContent = talk.title;
+    // Avoid duplicate if title already starts with teacher name
+    const mobileTitle = talk.title.toLowerCase().startsWith(teacherName.toLowerCase()) ? talk.title : `${teacherName}: ${talk.title}`;
+    document.getElementById('playerTitleMobile').textContent = mobileTitle;
+    document.getElementById('playerArtist').textContent = teacherName;
+    if (photoUrl) {
+        document.getElementById('playerPhoto').src = photoUrl;
+    }
+    
+    // Set background
+    if (photoUrl) {
+        document.body.style.setProperty('--bg-image', `url('${photoUrl}')`);
+    }
+    
+    // Check for saved progress
+    const savedProgress = getEpisodeProgress()[talkId];
+    
+    // Load and play audio
+    if (talk.audio_url) {
+        audio.src = talk.audio_url;
+        audio.load();
+        
+        // Restore progress if available and not near the end
+        if (savedProgress && savedProgress.position > 0 && savedProgress.percent < 95) {
+            audio.addEventListener('loadedmetadata', function onceLoaded() {
+                audio.removeEventListener('loadedmetadata', onceLoaded);
+                audio.currentTime = savedProgress.position;
+                audio.play().catch(e => console.log('Autoplay prevented:', e));
+            });
+        } else {
+            audio.play().catch(e => console.log('Autoplay prevented:', e));
+        }
+    }
+    
+    // Show player
+    document.getElementById('player').classList.add('visible');
+    
+    // Update list to show playing state
+    document.querySelectorAll('.talk-item').forEach(el => {
+        el.classList.toggle('playing', parseInt(el.dataset.id) === talkId);
+    });
+}
+
+// Handle talks search input (debounced)
+function handleTalksSearch(value) {
+    clearTimeout(talksSearchDebounceTimer);
+    
+    // Only search if 3+ characters or empty (to reset)
+    if (value.length >= 3 || value.length === 0) {
+        talksSearchDebounceTimer = setTimeout(() => {
+            talksSearchQuery = value;
+            renderTalksList(false);
+            updateTalksSearchIconState();
+        }, 500);
+    }
+}
+
+// Handle click on talks search/clear icon
+function handleTalksSearchIconClick() {
+    const talksSearchInput = document.getElementById('talksSearchInput');
+    if (talksSearchQuery.length > 0) {
+        clearTalksSearch();
+    } else {
+        talksSearchInput.focus();
+    }
+}
+
+// Clear talks search
+function clearTalksSearch() {
+    const talksSearchInput = document.getElementById('talksSearchInput');
+    talksSearchQuery = '';
+    talksSearchInput.value = '';
+    renderTalksList(false);
+    updateTalksSearchIconState();
+    talksSearchInput.focus();
+}
+
+// Update talks search icon state
+function updateTalksSearchIconState() {
+    const iconBtn = document.getElementById('talksSearchIconBtn');
+    if (iconBtn) {
+        iconBtn.classList.toggle('has-text', talksSearchQuery.length > 0);
+    }
+}
+
+// Setup talks infinite scroll
+function setupTalksInfiniteScroll() {
+    window.addEventListener('scroll', handleTalksScroll);
+}
+
+function removeTalksInfiniteScroll() {
+    window.removeEventListener('scroll', handleTalksScroll);
+}
+
+function handleTalksScroll() {
+    if (currentTab !== 'talks' || isLoadingMoreTalks) return;
+    if (talksDisplayed >= sortedTalks.length) return;
+    
+    const scrollY = window.scrollY;
+    const windowHeight = window.innerHeight;
+    const documentHeight = document.documentElement.scrollHeight;
+    
+    // Load more when user is 300px from bottom
+    if (scrollY + windowHeight >= documentHeight - 300) {
+        isLoadingMoreTalks = true;
+        renderTalksList(true);
+    }
+}
+
+// ============================================
+// TAB SWITCHING
+// ============================================
+
+function switchTab(tabName, resetFilter = true) {
+    currentTab = tabName;
+    
+    // Update tab column states
+    document.querySelectorAll('.tab-column').forEach(col => {
+        col.classList.toggle('active', col.dataset.tab === tabName);
+    });
+    
+    const popularSection = document.getElementById('popularSection');
+    const talksSection = document.getElementById('talksSection');
+    const searchSection = document.querySelector('.search-section');
+    
+    if (tabName === 'teachers') {
+        popularSection.style.display = 'block';
+        talksSection.style.display = 'none';
+        searchSection.style.display = 'flex';
+        
+        // Reset background to default Buddha image
+        document.body.style.setProperty('--bg-image', "url('https://dharmaseed.org/static/images/buddha_lge.jpg')");
+        
+        // If playing an archive talk, stop it and hide player
+        if (currentPlayingTalk) {
+            audio.pause();
+            audio.src = '';
+            currentPlayingTalk = null;
+            document.getElementById('player').classList.remove('visible');
+        }
+        
+        // Reset filters when clicking tab column
+        if (resetFilter) {
+            recentFilterActive = false;
+            talksFilterActive = 'all'; // Also reset talks filter
+            renderPopularTeachers(false);
+        }
+        
+        // Clear talks filter active state first
+        document.querySelectorAll('#talksFilterTabs .filter-item').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Set teacher filter active state based on current filter
+        const activeFilter = recentFilterActive ? 'recent' : 'all';
+        document.querySelectorAll('#filterTabs .filter-item').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === activeFilter);
+        });
+        
+        // Setup teachers infinite scroll
+        setupTeachersInfiniteScroll();
+        removeTalksInfiniteScroll();
+    } else if (tabName === 'talks') {
+        popularSection.style.display = 'none';
+        talksSection.style.display = 'block';
+        searchSection.style.display = 'none';
+        
+        // Reset background to default Buddha image
+        document.body.style.setProperty('--bg-image', "url('https://dharmaseed.org/static/images/buddha_lge.jpg')");
+        
+        // Reset filters when clicking tab column
+        if (resetFilter) {
+            talksFilterActive = 'all';
+            recentFilterActive = false; // Also reset teacher filter
+        }
+        
+        // Clear teacher filter active state first
+        document.querySelectorAll('#filterTabs .filter-item').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Set talks filter active state to 'all'
+        document.querySelectorAll('#talksFilterTabs .filter-item').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === talksFilterActive);
+        });
+        
+        // Load talks if not already loaded
+        if (!talksLoaded) {
+            loadTalksData();
+        } else if (resetFilter) {
+            renderTalksList();
+        }
+        
+        // Setup talks infinite scroll
+        setupTalksInfiniteScroll();
+        removeTeachersInfiniteScroll();
+    }
+}
+
+// Initialize tab click handlers
+function initTabHandlers() {
+    // Handle clicks on tab columns (but not on sub-filter buttons)
+    document.querySelectorAll('.tab-column').forEach(col => {
+        col.addEventListener('click', (e) => {
+            // Don't switch tabs if clicking on a sub-filter button
+            if (e.target.closest('.sub-filters')) return;
+            switchTab(col.dataset.tab);
+        });
+    });
+    
+    // Also handle clicks on tab headers directly
+    document.querySelectorAll('.tab-header').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            switchTab(btn.dataset.tab);
+        });
+    });
+    
+    // Add keyboard handler for talks search
+    const talksSearchInput = document.getElementById('talksSearchInput');
+    if (talksSearchInput) {
+        talksSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                clearTalksSearch();
+            }
+        });
+    }
+}
+
 async function selectTeacher(teacherId) {
     const teacher = TEACHERS_DB.find(t => t.id === teacherId);
     if (!teacher) return;
 
+    // If playing an archive talk, stop it and hide player
+    if (currentPlayingTalk) {
+        audio.pause();
+        audio.src = '';
+        currentPlayingTalk = null;
+        document.getElementById('player').classList.remove('visible');
+    }
+
     document.getElementById('popularSection').style.display = 'none';
+    document.getElementById('talksSection').style.display = 'none';
     document.querySelector('header').style.display = 'none';
     document.querySelector('.search-section').style.display = 'none';
+    const tabMenu = document.querySelector('.tab-menu-dual');
+    if (tabMenu) tabMenu.style.display = 'none';
     
     // Remove teachers infinite scroll when viewing a teacher
     removeTeachersInfiniteScroll();
+    removeTalksInfiniteScroll();
     
     // Reset state
     currentTeacherId = teacherId;
@@ -476,7 +1300,7 @@ async function loadAllTalksInBackground(teacherId, teacher) {
             const talkIdMatch = link.match(/\/talks\/(\d+)/);
             const talkId = talkIdMatch ? parseInt(talkIdMatch[1]) : index;
             
-            return {
+            return enrichEpisodeFromTalksDB({
                 id: talkId,
                 index: index,
                 title: item.querySelector('title')?.textContent || 'Untitled',
@@ -484,8 +1308,9 @@ async function loadAllTalksInBackground(teacherId, teacher) {
                 pubDate: item.querySelector('pubDate')?.textContent || '',
                 audioUrl: enclosure?.getAttribute('url') || '',
                 duration: duration,
-                link: link
-            };
+                link: link,
+                recording_type: ''
+            });
         }).filter(ep => ep.audioUrl);
         
         // Only update if still on the same teacher
@@ -554,7 +1379,7 @@ async function loadFeed(url, teacherInfo = null, isInitialLoad = true) {
             const talkIdMatch = link.match(/\/talks\/(\d+)/);
             const talkId = talkIdMatch ? parseInt(talkIdMatch[1]) : index;
             
-            return {
+            return enrichEpisodeFromTalksDB({
                 id: talkId,
                 index: index,
                 title: item.querySelector('title')?.textContent || 'Untitled',
@@ -562,8 +1387,9 @@ async function loadFeed(url, teacherInfo = null, isInitialLoad = true) {
                 pubDate: item.querySelector('pubDate')?.textContent || '',
                 audioUrl: enclosure?.getAttribute('url') || '',
                 duration: duration,
-                link: link
-            };
+                link: link,
+                recording_type: ''
+            });
         }).filter(ep => ep.audioUrl);
         
         // Store all episodes
@@ -661,9 +1487,9 @@ function goHome() {
     
     document.getElementById('teacherInfo').innerHTML = '';
     document.getElementById('content').innerHTML = '';
-    document.getElementById('popularSection').style.display = 'block';
     document.querySelector('header').style.display = '';
-    document.querySelector('.search-section').style.display = '';
+    const tabMenu = document.querySelector('.tab-menu-dual');
+    if (tabMenu) tabMenu.style.display = '';
     window.currentTeacherInfo = null;
     // Restore default background
     document.body.style.removeProperty('--bg-image');
@@ -678,8 +1504,8 @@ function goHome() {
     // Scroll to top before restoring infinite scroll to avoid triggering it
     window.scrollTo(0, 0);
     
-    // Restore teachers infinite scroll
-    setupTeachersInfiniteScroll();
+    // Restore the current tab view
+    switchTab(currentTab);
 }
 
 function updateUrl(params) {
@@ -753,10 +1579,23 @@ function renderEpisodes(skipAnimation = false) {
     const hiddenEpisodes = getHiddenEpisodes();
     
     // Filter episodes by search query (only filter after 3+ characters) and exclude hidden
+    // Uses exact word matching like the archive search
     const query = episodeSearchQuery.toLowerCase().trim();
     let filteredEpisodes = episodes.filter(ep => !hiddenEpisodes.includes(ep.id));
     if (query.length >= 3) {
-        filteredEpisodes = filteredEpisodes.filter(ep => stripTeacherPrefix(ep.title).toLowerCase().includes(query));
+        const words = query.split(/\s+/).filter(w => w.length > 0);
+        filteredEpisodes = filteredEpisodes.filter(ep => {
+            const title = stripTeacherPrefix(ep.title).toLowerCase();
+            const pubDate = (ep.pubDate || '').toLowerCase();
+            const recordingType = (ep.recording_type || '').toLowerCase();
+            const description = (ep.description || '').toLowerCase();
+            
+            // Every word must match at least one property (whole word match)
+            return words.every(word => {
+                const wordPattern = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                return wordPattern.test(title) || wordPattern.test(pubDate) || wordPattern.test(recordingType) || wordPattern.test(description);
+            });
+        });
     }
     
     content.innerHTML = `
@@ -786,6 +1625,7 @@ function renderEpisodes(skipAnimation = false) {
             <div class="episodes">
                 ${filteredEpisodes.map((ep, i) => {
                     const originalIndex = episodes.indexOf(ep);
+                    const recordingType = ep.recording_type || '';
                     return `
                     <div class="episode ${currentEpisode?.id === ep.id ? 'playing' : ''}" 
                          data-id="${ep.id}"
@@ -798,9 +1638,11 @@ function renderEpisodes(skipAnimation = false) {
                             </svg>
                         </div>
                         <div class="episode-main">
-                            <div class="episode-title">${stripTeacherPrefix(ep.title)}</div>
+                            <div class="episode-title">${highlightSearchTerms(stripTeacherPrefix(ep.title), episodeSearchQuery)}</div>
+                            ${ep.description ? `<div class="talk-description">${highlightSearchTerms(ep.description, episodeSearchQuery)}</div>` : ''}
                             <div class="episode-meta">
-                                <span>${formatDate(ep.pubDate)}</span>
+                                <span>${highlightSearchTerms(formatDate(ep.pubDate), episodeSearchQuery)}</span>
+                                ${recordingType ? `<span class="recording-type-badge">${highlightSearchTerms(recordingType, episodeSearchQuery)}</span>` : ''}
                             </div>
                         </div>
                         <div class="episode-right">
@@ -983,7 +1825,12 @@ function playEpisode(id, autoPlay = true) {
 
     playerTitle.textContent = episode.title;
     const playerTitleMobile = document.getElementById('playerTitleMobile');
-    if (playerTitleMobile) playerTitleMobile.textContent = episode.title;
+    const teacherName = window.currentTeacherInfo?.name || '';
+    // Avoid duplicate if title already starts with teacher name
+    const mobileTitle = !teacherName || episode.title.toLowerCase().startsWith(teacherName.toLowerCase()) 
+        ? episode.title 
+        : `${teacherName}: ${episode.title}`;
+    if (playerTitleMobile) playerTitleMobile.textContent = mobileTitle;
     
     // Update player with teacher info
     const playerArtist = document.getElementById('playerArtist');
@@ -1342,19 +2189,33 @@ function cycleSpeed() {
 }
 
 async function shareEpisode() {
-    if (!currentEpisode || !currentTeacherId) return;
-    
     const url = new URL(window.location.href.split('?')[0]);
-    url.searchParams.set('teacher', currentTeacherId);
-    url.searchParams.set('talk', currentEpisode.id); // Real Dharmaseed talk ID
+    let shareUrl;
+    let shareTitle;
     
-    const shareUrl = url.toString();
+    // Handle archive mode (currentPlayingTalk) - include teacher ID for better deep linking
+    if (currentPlayingTalk) {
+        url.searchParams.set('teacher', currentPlayingTalk.teacher_id);
+        url.searchParams.set('talk', currentPlayingTalk.id);
+        shareUrl = url.toString();
+        shareTitle = currentPlayingTalk.title;
+    }
+    // Handle teacher mode (currentEpisode)
+    else if (currentEpisode && currentTeacherId) {
+        url.searchParams.set('teacher', currentTeacherId);
+        url.searchParams.set('talk', currentEpisode.id);
+        shareUrl = url.toString();
+        shareTitle = currentEpisode.title;
+    }
+    else {
+        return; // Nothing playing
+    }
     
     try {
         if (navigator.share) {
             // Only use title and url - text causes duplication on some platforms
             await navigator.share({
-                title: currentEpisode.title,
+                title: shareTitle,
                 url: shareUrl
             });
         } else {
@@ -1392,6 +2253,9 @@ async function init() {
     const grid = document.getElementById('popularGrid');
     grid.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading teachers...</p></div>';
     
+    // Initialize tab handlers
+    initTabHandlers();
+    
     try {
         // Always fetch fresh data (bypass browser cache)
         const response = await fetch('db/dharmaseed_teachers.json', { cache: 'no-store' });
@@ -1405,9 +2269,12 @@ async function init() {
         // Set up teachers infinite scroll
         setupTeachersInfiniteScroll();
         
+        // Preload talks data in background for episode enrichment
+        preloadTalksData();
+        
         // Check URL params for deep linking first
         const params = new URLSearchParams(window.location.search);
-        if (params.get('teacher')) {
+        if (params.get('teacher') || params.get('talk') || params.get('episode')) {
             // Deep link takes priority
             checkUrlParams();
         } else {
@@ -1447,6 +2314,8 @@ function showResumeDialog(state, isNearEnd) {
     const circumference = 2 * Math.PI * 21; // radius = 21
     const dashOffset = circumference - (progress / 100) * circumference;
     
+    const isArchiveTalk = state.isArchiveTalk || false;
+    
     const overlay = document.createElement('div');
     overlay.className = 'resume-overlay';
     overlay.innerHTML = `
@@ -1466,11 +2335,11 @@ function showResumeDialog(state, isNearEnd) {
                     </div>
                 ` : ''}
             </div>
-            ${isNearEnd ? `<p>You finished this talk. Browse more from ${state.teacherName}?</p>` : ''}
+            ${isNearEnd ? `<p>You finished this talk.${!isArchiveTalk ? ` Browse more from ${state.teacherName}?` : ''}</p>` : ''}
             <div class="resume-buttons">
                 <button class="resume-btn secondary" onclick="dismissResume()">Start Fresh</button>
-                <button class="resume-btn primary" onclick="acceptResume(${state.teacherId}, ${state.talkId}, ${state.position}, ${isNearEnd})">
-                    ${isNearEnd ? 'View Teacher' : 'Continue'}
+                <button class="resume-btn primary" onclick="acceptResume(${state.teacherId || 'null'}, ${state.talkId}, ${state.position}, ${isNearEnd}, ${isArchiveTalk})">
+                    ${isNearEnd ? (isArchiveTalk ? 'Browse Archive' : 'View Teacher') : 'Continue'}
                 </button>
             </div>
         </div>
@@ -1484,10 +2353,40 @@ function dismissResume() {
     clearPlaybackState();
 }
 
-async function acceptResume(teacherId, talkId, position, isNearEnd) {
+async function acceptResume(teacherId, talkId, position, isNearEnd, isArchiveTalk = false) {
     const overlay = document.querySelector('.resume-overlay');
     if (overlay) overlay.remove();
     
+    // Handle archive talk resume
+    if (isArchiveTalk) {
+        switchTab('talks', false);
+        
+        const checkAndResumeTalk = () => {
+            if (talksLoaded && TALKS_DB.length > 0) {
+                const talk = TALKS_DB.find(t => t.id === talkId);
+                if (talk) {
+                    if (!isNearEnd) {
+                        // Play and resume at position
+                        playTalkFromList(talkId);
+                        // Position is restored by playTalkFromList via saved progress
+                    }
+                    // Scroll to the talk
+                    setTimeout(() => {
+                        const talkEl = document.querySelector(`.talk-item[data-id="${talkId}"]`);
+                        if (talkEl) {
+                            talkEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 100);
+                }
+            } else {
+                setTimeout(checkAndResumeTalk, 500);
+            }
+        };
+        setTimeout(checkAndResumeTalk, 500);
+        return;
+    }
+    
+    // Handle teacher playlist resume
     await selectTeacher(teacherId);
     
     if (!isNearEnd) {
@@ -1516,8 +2415,36 @@ async function acceptResume(teacherId, talkId, position, isNearEnd) {
 // Check URL params for deep linking (shared links)
 async function checkUrlParams() {
     const params = new URLSearchParams(window.location.search);
-    const teacherId = params.get('teacher');
+    let teacherId = params.get('teacher');
     const talkId = params.get('talk') || params.get('episode'); // Support both for backwards compat
+    
+    // If only talk ID provided, find the teacher from TALKS_DB
+    if (!teacherId && talkId) {
+        const targetTalkId = parseInt(talkId);
+        
+        // Wait for TALKS_DB to be loaded
+        const waitForTalksDB = async () => {
+            // If not loaded yet, trigger preload and wait
+            if (TALKS_DB.length === 0) {
+                await preloadTalksData();
+            }
+            
+            const talk = TALKS_DB.find(t => t.id === targetTalkId);
+            if (talk && talk.teacher_id) {
+                teacherId = talk.teacher_id.toString();
+                console.log(`Found teacher ${teacherId} for talk ${talkId}`);
+                
+                // Update URL to include teacher for better sharing
+                const newUrl = new URL(window.location);
+                newUrl.searchParams.set('teacher', teacherId);
+                window.history.replaceState({}, '', newUrl);
+            } else {
+                console.warn('Could not find teacher for talk:', talkId);
+            }
+        };
+        
+        await waitForTalksDB();
+    }
     
     if (teacherId) {
         const tid = parseInt(teacherId);

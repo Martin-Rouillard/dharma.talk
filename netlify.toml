@@ -1,6 +1,29 @@
 [build]
   publish = "."
 
+# Dharmaseed-style URL redirects
+# /teacher/637/ -> /?teacher=637
+[[redirects]]
+  from = "/teacher/:id"
+  to = "/?teacher=:id"
+  status = 302
+
+[[redirects]]
+  from = "/teacher/:id/"
+  to = "/?teacher=:id"
+  status = 302
+
+# /talks/94960/ -> /?talk=94960
+[[redirects]]
+  from = "/talks/:id"
+  to = "/?talk=:id"
+  status = 302
+
+[[redirects]]
+  from = "/talks/:id/"
+  to = "/?talk=:id"
+  status = 302
+
 # Proxy RSS feeds to Dharmaseed
 [[redirects]]
   from = "/feeds/*"

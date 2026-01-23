@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#000000">
+    <title>Dharma.Talk - Recent Talks</title>
+    
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link rel="preconnect" href="https://dharmaseed.org">
+    <link rel="preconnect" href="https://media.dharmaseed.org">
+    
+    <link rel="stylesheet" href="/css/style.css?v=1.0.4">
+    <style>
+        /* Talk-specific styles */
+        .talk-item {
+            border-radius: 1rem;
+            padding: 1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            animation: slideUp 0.4s ease backwards;
+            display: grid;
+            grid-template-columns: 48px 1fr auto;
+            gap: 1rem;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .talk-item:hover {
+            background: #00000033;
+        }
+
+        .talk-item.playing {
+            box-shadow: inset 0 0 0 1px var(--accent);
+        }
+
+        .talk-teacher-photo {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .talk-teacher-placeholder {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-elevated);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        .talk-main {
+            min-width: 0;
+        }
+
+        .talk-title {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .talk-item.playing .talk-title {
+            color: var(--accent);
+        }
+
+        .talk-meta {
+            display: flex;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .talk-teacher-name {
+            color: var(--text-secondary);
+        }
+
+        .talk-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.25rem;
+        }
+
+        .talk-duration {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .talk-date {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .talks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0 1rem;
+        }
+
+        .page-header {
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .talk-count {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .recording-type-badge {
+            background: var(--bg-elevated);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+
+        /* Play icon overlay on hover */
+        .talk-photo-wrapper {
+            position: relative;
+            width: 48px;
+            height: 48px;
+        }
+
+        .talk-play-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .talk-item:hover .talk-play-overlay {
+            display: flex;
+        }
+
+        .talk-play-overlay svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        .talk-item.playing .talk-play-overlay {
+            display: flex;
+            background: rgba(0, 208, 74, 0.3);
+        }
+
+        .talk-item.playing .talk-play-overlay svg {
+            fill: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="https://donorbox.org/dharma-seed-support" target="_blank" class="donate-link">Support Dharmaseed.org in its mission to keep offering free Dharma teachings.</a>
+            <div class="logo-icon">
+               <img src="img/icon.svg" class="logo-icon" alt="Dharma.Talk Logo">
+            </div>
+        </header>
+
+        <div class="page-header">
+            <a href="/" class="back-btn" style="text-decoration: none;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg>
+            </a>
+            <div>
+                <h1 class="page-title">Recent Talks</h1>
+                <span class="talk-count" id="talkCount">Loading...</span>
+            </div>
+        </div>
+
+        <div class="search-section">
+            <button type="button" id="searchIconBtn" class="search-icon-btn" onclick="handleSearchIconClick()" aria-label="Search or clear">
+                <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="M21 21l-4.35-4.35"></path>
+                </svg>
+                <svg class="icon-clear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
+            <div class="search-row">
+                <input type="text" id="searchInput" class="search-input" placeholder="Search talks..." autocomplete="off" oninput="handleSearch(this.value)">
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading talks...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="player" id="player">
+        <div class="player-inner">
+            <div class="player-track">
+                <img src="" alt="" class="player-track-photo" id="playerPhoto">
+                <div class="player-track-info">
+                    <div class="player-title" id="playerTitle">-</div>
+                    <div class="player-artist" id="playerArtist">-</div>
+                </div>
+            </div>
+            <div class="player-controls">
+                <div class="player-title-mobile" id="playerTitleMobile">-</div>
+                <div class="player-buttons-row">
+                    <div class="player-buttons">
+                    <button class="control-btn" onclick="audio.currentTime = 0" title="Skip to start">
+                        <svg viewBox="0 -960 960 960"><path d="M220-240v-480h80v480h-80Zm520 0L380-480l360-240v480Z"/></svg>
+                    </button>
+                    <button class="control-btn" onclick="audio.currentTime = Math.max(0, audio.currentTime - 15)">
+                        <svg viewBox="0 -960 960 960"><path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Z"/></svg>
+                    </button>
+                    <button class="play-btn" id="playBtn" onclick="togglePlay()">
+                        <svg id="playIcon" viewBox="0 -960 960 960">
+                            <path d="M320-200v-560l440 280-440 280Z"/>
+                        </svg>
+                        <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;">
+                            <rect x="6" y="4" width="4" height="16"></rect>
+                            <rect x="14" y="4" width="4" height="16"></rect>
+                        </svg>
+                    </button>
+                    <button class="control-btn" onclick="audio.currentTime = Math.min(audio.duration, audio.currentTime + 15)">
+                        <svg viewBox="0 -960 960 960"><path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240Z"/></svg>
+                    </button>
+                    <button class="speed-btn" id="speedBtn" onclick="cycleSpeed()">1x</button>
+                    </div>
+                </div>
+                <div class="progress-wrapper">
+                    <span class="player-time" id="currentTime">0:00</span>
+                    <div class="progress-bar" id="progressBar" onclick="seek(event)">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="player-time right" id="totalTime">0:00</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audio" preload="none"></audio>
+
+    <script>
+        // Data stores
+        let talks = [];
+        let teachers = {};
+        let currentTalk = null;
+        let searchQuery = '';
+
+        // Audio elements
+        const audio = document.getElementById('audio');
+        const player = document.getElementById('player');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const playerTitle = document.getElementById('playerTitle');
+        const playerTitleMobile = document.getElementById('playerTitleMobile');
+        const playerArtist = document.getElementById('playerArtist');
+        const playerPhoto = document.getElementById('playerPhoto');
+        const currentTimeEl = document.getElementById('currentTime');
+        const totalTimeEl = document.getElementById('totalTime');
+        const progressFill = document.getElementById('progressFill');
+        const progressBar = document.getElementById('progressBar');
+        const speedBtn = document.getElementById('speedBtn');
+        const searchInput = document.getElementById('searchInput');
+
+        // Speed control
+        const speeds = [0.75, 1, 1.25, 1.5, 1.75, 2];
+        let speedIndex = 1;
+
+        // Load data
+        async function loadData() {
+            try {
+                // Load talks and teachers in parallel
+                const [talksRes, teachersRes] = await Promise.all([
+                    fetch('db/dharmaseed_talks.json'),
+                    fetch('db/dharmaseed_teachers.json')
+                ]);
+
+                talks = await talksRes.json();
+                const teachersData = await teachersRes.json();
+
+                // Create teacher lookup map
+                teachersData.teachers.forEach(t => {
+                    teachers[t.id] = t;
+                });
+
+                document.getElementById('talkCount').textContent = `${talks.length} talks`;
+                renderTalks();
+
+                // Check URL for talk parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const talkId = urlParams.get('talk');
+                if (talkId) {
+                    playTalk(parseInt(talkId));
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="loading">
+                        <p>Error loading talks: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Get teacher info
+        function getTeacher(teacherId) {
+            return teachers[teacherId] || null;
+        }
+
+        // Get teacher initials for placeholder
+        function getInitials(name) {
+            if (!name) return '?';
+            return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        }
+
+        // Format duration from minutes
+        function formatDuration(minutes) {
+            if (!minutes) return '';
+            const totalSeconds = Math.round(minutes * 60);
+            const hrs = Math.floor(totalSeconds / 3600);
+            const mins = Math.floor((totalSeconds % 3600) / 60);
+            if (hrs > 0) {
+                return `${hrs}h ${mins}m`;
+            }
+            return `${mins}m`;
+        }
+
+        // Format date
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            } catch {
+                return dateStr;
+            }
+        }
+
+        // Format time for player
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Render talks list
+        function renderTalks() {
+            const content = document.getElementById('content');
+            
+            // Filter by search - each word filters all properties, results are ANDed
+            let filteredTalks = talks;
+            if (searchQuery.length >= 3) {
+                const words = searchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+                filteredTalks = talks.filter(talk => {
+                    const teacher = getTeacher(talk.teacher_id);
+                    const teacherName = (teacher?.name || '').toLowerCase();
+                    const title = talk.title.toLowerCase();
+                    const recordingType = (talk.recording_type || '').toLowerCase();
+                    const description = (talk.description || '').toLowerCase();
+                    const recDate = (talk.rec_date || '').toLowerCase();
+                    
+                    // Every word must match at least one property
+                    return words.every(word => 
+                        title.includes(word) || 
+                        teacherName.includes(word) ||
+                        recordingType.includes(word) ||
+                        description.includes(word) ||
+                        recDate.includes(word)
+                    );
+                });
+            }
+
+            if (filteredTalks.length === 0) {
+                content.innerHTML = `
+                    <div class="loading">
+                        <p>No talks found${searchQuery ? ` for "${searchQuery}"` : ''}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            content.innerHTML = `
+                <div class="talks-list">
+                    ${filteredTalks.map((talk, i) => {
+                        const teacher = getTeacher(talk.teacher_id);
+                        const teacherName = teacher?.name || 'Unknown Teacher';
+                        const photoUrl = teacher?.photo_url || '';
+                        const initials = getInitials(teacherName);
+                        const isPlaying = currentTalk?.id === talk.id;
+                        
+                        return `
+                            <div class="talk-item ${isPlaying ? 'playing' : ''}" 
+                                 data-id="${talk.id}"
+                                 onclick="playTalk(${talk.id})"
+                                 style="animation-delay: ${Math.min(i * 0.03, 0.3)}s">
+                                <div class="talk-photo-wrapper">
+                                    ${photoUrl 
+                                        ? `<img src="${photoUrl}" alt="${teacherName}" class="talk-teacher-photo" onerror="this.outerHTML='<div class=\\'talk-teacher-placeholder\\'>${initials}</div>'">`
+                                        : `<div class="talk-teacher-placeholder">${initials}</div>`
+                                    }
+                                    <div class="talk-play-overlay">
+                                        <svg viewBox="0 0 24 24">
+                                            <polygon points="5,3 19,12 5,21"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="talk-main">
+                                    <div class="talk-title">${talk.title}</div>
+                                    <div class="talk-meta">
+                                        <span class="talk-teacher-name">${teacherName}</span>
+                                        ${talk.recording_type ? `<span class="recording-type-badge">${talk.recording_type}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="talk-right">
+                                    <span class="talk-duration">${formatDuration(talk.duration_in_minutes)}</span>
+                                    <span class="talk-date">${formatDate(talk.rec_date)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <div class="end-of-list">
+                    <span>${searchQuery ? `${filteredTalks.length} of ${talks.length} talks` : `${talks.length} talks`}</span>
+                </div>
+            `;
+        }
+
+        // Update URL with talk parameter
+        function updateUrl(talkId) {
+            const url = new URL(window.location.href);
+            url.search = '';
+            if (talkId) url.searchParams.set('talk', talkId);
+            window.history.replaceState({}, '', url);
+        }
+
+        // Play a talk
+        function playTalk(talkId) {
+            const talk = talks.find(t => t.id === talkId);
+            if (!talk) return;
+
+            currentTalk = talk;
+            const teacher = getTeacher(talk.teacher_id);
+            const teacherName = teacher?.name || 'Unknown Teacher';
+            const photoUrl = teacher?.photo_url || '';
+
+            // Update URL with talk ID
+            updateUrl(talkId);
+
+            // Update player UI
+            playerTitle.textContent = talk.title;
+            playerTitleMobile.textContent = talk.title;
+            playerArtist.textContent = teacherName;
+            if (photoUrl) {
+                playerPhoto.src = photoUrl;
+            }
+
+            // Set background
+            if (photoUrl) {
+                document.body.style.setProperty('--bg-image', `url('${photoUrl}')`);
+            }
+
+            // Load and play audio
+            if (talk.audio_url) {
+                audio.src = talk.audio_url;
+                audio.load();
+                audio.play().catch(e => console.log('Autoplay prevented:', e));
+            }
+
+            // Show player
+            player.classList.add('visible');
+
+            // Update list to show playing state
+            renderTalks();
+        }
+
+        // Toggle play/pause
+        function togglePlay() {
+            if (audio.paused) {
+                audio.play();
+            } else {
+                audio.pause();
+            }
+        }
+
+        // Seek
+        function seek(event) {
+            const rect = progressBar.getBoundingClientRect();
+            const percent = (event.clientX - rect.left) / rect.width;
+            audio.currentTime = percent * audio.duration;
+        }
+
+        // Cycle playback speed
+        function cycleSpeed() {
+            speedIndex = (speedIndex + 1) % speeds.length;
+            audio.playbackRate = speeds[speedIndex];
+            speedBtn.textContent = speeds[speedIndex] + 'x';
+        }
+
+        // Search handling with debounce
+        let searchDebounceTimer = null;
+        
+        function handleSearch(value) {
+            searchQuery = value;
+            
+            // Clear previous timer
+            if (searchDebounceTimer) {
+                clearTimeout(searchDebounceTimer);
+            }
+            
+            // Immediate clear when empty
+            if (value.length === 0) {
+                renderTalks();
+                return;
+            }
+            
+            // Wait for 3 characters minimum
+            if (value.length < 3) {
+                return;
+            }
+            
+            // Debounce: wait 500ms for user to finish typing
+            searchDebounceTimer = setTimeout(() => {
+                renderTalks();
+            }, 500);
+        }
+
+        function handleSearchIconClick() {
+            if (searchQuery) {
+                searchInput.value = '';
+                searchQuery = '';
+                renderTalks();
+            }
+            searchInput.focus();
+        }
+
+        // Audio event listeners
+        audio.addEventListener('play', () => {
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'block';
+        });
+
+        audio.addEventListener('pause', () => {
+            playIcon.style.display = 'block';
+            pauseIcon.style.display = 'none';
+        });
+
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration) {
+                const percent = (audio.currentTime / audio.duration) * 100;
+                progressFill.style.width = percent + '%';
+                currentTimeEl.textContent = formatTime(audio.currentTime);
+            }
+        });
+
+        audio.addEventListener('loadedmetadata', () => {
+            totalTimeEl.textContent = formatTime(audio.duration);
+        });
+
+        audio.addEventListener('ended', () => {
+            // Play next talk
+            if (currentTalk) {
+                const currentIndex = talks.findIndex(t => t.id === currentTalk.id);
+                if (currentIndex < talks.length - 1) {
+                    playTalk(talks[currentIndex + 1].id);
+                }
+            }
+        });
+
+        // Initialize
+        loadData();
+    </script>
+</body>
+</html>
