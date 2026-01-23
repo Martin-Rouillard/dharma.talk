@@ -110,7 +110,7 @@ header {
     /* gap: 3vw; */
     margin: 0 auto;
     max-width: 800px;
-    align-items: center;
+    align-items: flex-end;
     align-content: center;
     padding: 2rem;
 }
@@ -138,11 +138,21 @@ header {
     transition: color 0.2s ease;
 }
 
-.tab-column:hover .tab-icon {
+.tab-icon-svg {
+    width: 2.6rem;
+    height: 2.6rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+    transition: color 0.2s ease;
+}
+
+.tab-column:hover .tab-icon,
+.tab-column:hover .tab-icon-svg {
     color: var(--text-primary);
 }
 
-.tab-column.active .tab-icon {
+.tab-column.active .tab-icon,
+.tab-column.active .tab-icon-svg {
     color: var(--accent);
 }
 
