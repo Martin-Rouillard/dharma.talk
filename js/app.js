@@ -26,6 +26,7 @@ const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 const TALKS_DB_NAME = 'dharmaseed_talks_db';
 const TALKS_STORE_NAME = 'talks';
 const TALKS_DB_VERSION = 1;
+const TALKS_CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours (talks update more frequently)
 
 function getTeachersCache() {
     try {
@@ -49,8 +50,8 @@ function setTeachersCache(teachers) {
     }
 }
 
-function isCacheStale(timestamp) {
-    return Date.now() - timestamp > CACHE_MAX_AGE;
+function isCacheStale(timestamp, maxAge = CACHE_MAX_AGE) {
+    return Date.now() - timestamp > maxAge;
 }
 
 // IndexedDB helpers for talks cache
@@ -143,9 +144,39 @@ async function refreshTalksInBackground() {
                 console.log('Updated in-memory talks data after pause');
             }, { once: true });
         }
+        return talks;
     } catch (e) {
         console.warn('Talks background refresh failed:', e);
+        return null;
     }
+}
+
+// Check if server has newer talks than our cache
+async function checkForNewerTalks(cachedTalks) {
+    try {
+        // Fetch just the first part of the JSON to get the latest ID
+        const response = await fetch('db/dharmaseed_talks.json', { 
+            cache: 'no-store',
+            headers: { 'Range': 'bytes=0-500' } // Just get first 500 bytes
+        });
+        
+        // If range not supported, fall back to checking staleness
+        if (response.status !== 206) {
+            return null; // Can't determine, let staleness check handle it
+        }
+        
+        const partial = await response.text();
+        // Extract first ID from JSON array: [{"id": 12345, ...
+        const match = partial.match(/"id"\s*:\s*(\d+)/);
+        if (match) {
+            const serverLatestId = parseInt(match[1]);
+            const cacheLatestId = cachedTalks[0]?.id || 0;
+            return serverLatestId > cacheLatestId;
+        }
+    } catch (e) {
+        console.warn('Could not check for newer talks:', e);
+    }
+    return null; // Unknown, fall back to staleness check
 }
 
 // Background refresh: update cache without disrupting playback
@@ -680,9 +711,12 @@ async function preloadTalksData() {
             TALKS_DB = cached.talks;
             console.log(`Preloaded ${TALKS_DB.length} talks from cache`);
             
-            // If cache is stale, refresh in background
-            if (isCacheStale(cached.timestamp)) {
-                console.log('Talks cache is stale, refreshing in background...');
+            // Check if server has newer talks OR if cache is stale
+            const hasNewerTalks = await checkForNewerTalks(cached.talks);
+            const isStale = isCacheStale(cached.timestamp, TALKS_CACHE_MAX_AGE);
+            
+            if (hasNewerTalks === true || (hasNewerTalks === null && isStale)) {
+                console.log(hasNewerTalks ? 'Server has newer talks, refreshing...' : 'Talks cache is stale, refreshing in background...');
                 showToast('Updating database...');
                 await refreshTalksInBackground();
                 hideToast();
@@ -727,9 +761,12 @@ async function loadTalksData() {
                 TALKS_DB = allTalks;
                 console.log(`Loaded ${TALKS_DB.length} talks from cache`);
                 
-                // If cache is stale, refresh in background
-                if (isCacheStale(cached.timestamp)) {
-                    console.log('Talks cache is stale, refreshing in background...');
+                // Check if server has newer talks OR if cache is stale
+                const hasNewerTalks = await checkForNewerTalks(cached.talks);
+                const isStale = isCacheStale(cached.timestamp, TALKS_CACHE_MAX_AGE);
+                
+                if (hasNewerTalks === true || (hasNewerTalks === null && isStale)) {
+                    console.log(hasNewerTalks ? 'Server has newer talks, refreshing...' : 'Talks cache is stale, refreshing in background...');
                     refreshTalksInBackground();
                 }
             } else {
