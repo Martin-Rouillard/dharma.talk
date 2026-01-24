@@ -3,10 +3,19 @@ let TEACHERS_DB = [];
 
 // Talks database - loaded from external JSON
 let TALKS_DB = [];
+
+// Pali search hints for suggestion module
+let PALI_HINTS = [];
+let currentSuggestion = null;
 let talksSearchQuery = '';
 let talksSearchDebounceTimer = null;
 let currentTab = 'teachers'; // 'teachers' or 'talks'
 let currentPlayingTalk = null; // For talks tab playback
+
+// Normalize diacritics (Pali: ā→a, ī→i, ū→u, ṃ→m, ṅ→n, ñ→n, ṭ→t, ḍ→d, ṇ→n, ḷ→l)
+function normalizeDiacritics(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
 
 // Teachers data caching (localStorage)
 const TEACHERS_CACHE_KEY = 'dharmaseed_teachers_cache';
@@ -781,16 +790,52 @@ function getTalkInitials(name) {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
-// Highlight search terms in text (whole words only)
+// Highlight search terms in text (whole words only, supports diacritics)
 function highlightSearchTerms(text, searchQuery) {
     if (!text || !searchQuery || searchQuery.length < 3) return text || '';
-    const words = searchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    const words = normalizeDiacritics(searchQuery.toLowerCase()).split(/\s+/).filter(w => w.length > 0);
     if (words.length === 0) return text;
     
-    // Escape special regex characters and create pattern with word boundaries
+    // Escape special regex characters
     const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const pattern = new RegExp(`\\b(${escapedWords.join('|')})\\b`, 'gi');
-    return text.replace(pattern, '<mark class="search-highlight">$1</mark>');
+    const normalizedText = normalizeDiacritics(text.toLowerCase());
+    
+    // Find all matches for all words at once
+    const allMatches = [];
+    escapedWords.forEach(word => {
+        const pattern = new RegExp(`\\b${word}\\b`, 'gi');
+        let match;
+        while ((match = pattern.exec(normalizedText)) !== null) {
+            allMatches.push({ start: match.index, end: match.index + match[0].length });
+        }
+    });
+    
+    if (allMatches.length === 0) return text;
+    
+    // Sort by start position and merge overlapping matches
+    allMatches.sort((a, b) => a.start - b.start);
+    const mergedMatches = [allMatches[0]];
+    for (let i = 1; i < allMatches.length; i++) {
+        const last = mergedMatches[mergedMatches.length - 1];
+        const curr = allMatches[i];
+        if (curr.start <= last.end) {
+            last.end = Math.max(last.end, curr.end);
+        } else {
+            mergedMatches.push(curr);
+        }
+    }
+    
+    // Build result by applying highlights from end to start
+    let result = text;
+    for (let i = mergedMatches.length - 1; i >= 0; i--) {
+        const m = mergedMatches[i];
+        const original = text.substring(m.start, m.end);
+        result = result.substring(0, m.start) + 
+                 `<mark class="search-highlight">${original}</mark>` + 
+                 result.substring(m.end);
+    }
+    
+    return result;
 }
 
 // Truncate text with ellipsis
@@ -829,6 +874,9 @@ function formatTalkDate(dateStr) {
 // Set talks filter (all, talk, meditation, other)
 function setTalksFilter(filter) {
     talksFilterActive = filter;
+    
+    // Reset search and suggestion
+    resetTalksSearchAndSuggestion();
     
     // Update talks filter tab UI
     document.querySelectorAll('#talksFilterTabs .filter-item').forEach(btn => {
@@ -874,13 +922,13 @@ function renderTalksList(append = false) {
         
         // Apply search filter if query exists
         if (talksSearchQuery.length >= 3) {
-            const words = talksSearchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+            const words = normalizeDiacritics(talksSearchQuery.toLowerCase()).split(/\s+/).filter(w => w.length > 0);
             filteredTalks = filteredTalks.filter(talk => {
                 const teacher = getTalkTeacher(talk.teacher_id);
-                const teacherName = (teacher?.name || '').toLowerCase();
-                const title = talk.title.toLowerCase();
-                const recordingType = (talk.recording_type || '').toLowerCase();
-                const description = (talk.description || '').toLowerCase();
+                const teacherName = normalizeDiacritics((teacher?.name || '').toLowerCase());
+                const title = normalizeDiacritics(talk.title.toLowerCase());
+                const recordingType = normalizeDiacritics((talk.recording_type || '').toLowerCase());
+                const description = normalizeDiacritics((talk.description || '').toLowerCase());
                 const recDate = (talk.rec_date || '').toLowerCase();
                 
                 // Every word must match at least one property (whole word match)
@@ -1073,11 +1121,122 @@ function clearTalksSearch() {
     talksSearchInput.focus();
 }
 
+// Reset talks search and suggestion box
+function resetTalksSearchAndSuggestion() {
+    // Reset search
+    const talksSearchInput = document.getElementById('talksSearchInput');
+    if (talksSearchInput) {
+        talksSearchQuery = '';
+        talksSearchInput.value = '';
+        updateTalksSearchIconState();
+    }
+    
+    // Reset suggestion to initial state
+    suggestionRevealed = false;
+    currentSuggestion = null;
+    
+    const placeholder = document.getElementById('suggestionPlaceholder');
+    const content = document.getElementById('suggestionContent');
+    const refreshBtn = document.getElementById('suggestionRefreshBtn');
+    
+    if (placeholder) placeholder.style.display = 'inline';
+    if (content) content.style.display = 'none';
+    if (refreshBtn) refreshBtn.style.display = 'none';
+}
+
 // Update talks search icon state
 function updateTalksSearchIconState() {
     const iconBtn = document.getElementById('talksSearchIconBtn');
     if (iconBtn) {
         iconBtn.classList.toggle('has-text', talksSearchQuery.length > 0);
+    }
+}
+
+// Load Pali search hints
+async function loadPaliHints() {
+    try {
+        const response = await fetch('/db/pali_search_hints.json');
+        const data = await response.json();
+        PALI_HINTS = data.terms || [];
+        // Don't show suggestion on load, wait for user click
+    } catch (e) {
+        console.warn('Failed to load Pali hints:', e);
+    }
+}
+
+// Track if suggestion has been revealed
+let suggestionRevealed = false;
+
+// Handle click on suggestion module (first click reveals, subsequent clicks refresh)
+function handleSuggestionClick() {
+    if (!suggestionRevealed) {
+        // First click: reveal the suggestion
+        revealSuggestion();
+    } else {
+        // Subsequent clicks: refresh and apply
+        refreshSuggestion(true);
+    }
+}
+
+// Reveal suggestion for the first time
+function revealSuggestion() {
+    const placeholder = document.getElementById('suggestionPlaceholder');
+    const content = document.getElementById('suggestionContent');
+    const refreshBtn = document.getElementById('suggestionRefreshBtn');
+    
+    if (placeholder && content) {
+        placeholder.style.display = 'none';
+        content.style.display = 'inline';
+    }
+    
+    // Show refresh button
+    if (refreshBtn) {
+        refreshBtn.style.display = 'flex';
+    }
+    
+    suggestionRevealed = true;
+    refreshSuggestion(true); // Show and apply first suggestion
+}
+
+// Refresh suggestion with random Pali term (autoApply: true when user clicks refresh)
+function refreshSuggestion(autoApply = true) {
+    if (PALI_HINTS.length === 0) return;
+    
+    // Get random term (different from current if possible)
+    let newSuggestion;
+    if (PALI_HINTS.length > 1) {
+        do {
+            newSuggestion = PALI_HINTS[Math.floor(Math.random() * PALI_HINTS.length)];
+        } while (newSuggestion === currentSuggestion);
+    } else {
+        newSuggestion = PALI_HINTS[0];
+    }
+    currentSuggestion = newSuggestion;
+    
+    const paliEl = document.getElementById('suggestionPali');
+    const englishEl = document.getElementById('suggestionEnglish');
+    
+    if (paliEl && englishEl) {
+        paliEl.textContent = currentSuggestion.pali;
+        englishEl.textContent = `(${currentSuggestion.english})`;
+    }
+    
+    // Auto-apply suggestion to search only if requested (user clicked)
+    if (autoApply) {
+        applySuggestion();
+    }
+}
+
+// Apply suggestion to search
+function applySuggestion() {
+    if (!currentSuggestion) return;
+    
+    const talksSearchInput = document.getElementById('talksSearchInput');
+    if (talksSearchInput) {
+        talksSearchInput.value = currentSuggestion.pali;
+        talksSearchQuery = currentSuggestion.pali;
+        renderTalksList(false);
+        updateTalksSearchIconState();
     }
 }
 
@@ -1109,8 +1268,23 @@ function handleTalksScroll() {
 // TAB SWITCHING
 // ============================================
 
-function switchTab(tabName, resetFilter = true) {
+function switchTab(tabName, resetFilter = true, updateUrl = true) {
     currentTab = tabName;
+    
+    // Update URL parameter for tab persistence
+    if (updateUrl) {
+        const url = new URL(window.location);
+        // Clear other tab params
+        url.searchParams.delete('teachers');
+        url.searchParams.delete('archives');
+        // Set current tab param (only if not on default teachers tab or if explicitly switching)
+        if (tabName === 'talks') {
+            url.searchParams.set('archives', '');
+        } else if (tabName === 'teachers' && url.searchParams.has('archives')) {
+            // Only update URL if coming from archives
+        }
+        window.history.replaceState({}, '', url);
+    }
     
     // Update tab column states
     document.querySelectorAll('.tab-column').forEach(col => {
@@ -1120,11 +1294,13 @@ function switchTab(tabName, resetFilter = true) {
     const popularSection = document.getElementById('popularSection');
     const talksSection = document.getElementById('talksSection');
     const searchSection = document.querySelector('.search-section');
+    const teachersHeader = document.querySelector('.teachers-header');
     
     if (tabName === 'teachers') {
         popularSection.style.display = 'block';
         talksSection.style.display = 'none';
         searchSection.style.display = 'flex';
+        if (teachersHeader) teachersHeader.style.display = 'block';
         
         // Reset background to default Buddha image
         document.body.style.setProperty('--bg-image', "url('https://dharmaseed.org/static/images/buddha_lge.jpg')");
@@ -1162,6 +1338,7 @@ function switchTab(tabName, resetFilter = true) {
         popularSection.style.display = 'none';
         talksSection.style.display = 'block';
         searchSection.style.display = 'none';
+        if (teachersHeader) teachersHeader.style.display = 'none';
         
         // Reset background to default Buddha image
         document.body.style.setProperty('--bg-image', "url('https://dharmaseed.org/static/images/buddha_lge.jpg')");
@@ -1170,6 +1347,7 @@ function switchTab(tabName, resetFilter = true) {
         if (resetFilter) {
             talksFilterActive = 'all';
             recentFilterActive = false; // Also reset teacher filter
+            resetTalksSearchAndSuggestion(); // Reset search and suggestion
         }
         
         // Clear teacher filter active state first
@@ -1580,15 +1758,15 @@ function renderEpisodes(skipAnimation = false) {
     
     // Filter episodes by search query (only filter after 3+ characters) and exclude hidden
     // Uses exact word matching like the archive search
-    const query = episodeSearchQuery.toLowerCase().trim();
+    const query = normalizeDiacritics(episodeSearchQuery.toLowerCase().trim());
     let filteredEpisodes = episodes.filter(ep => !hiddenEpisodes.includes(ep.id));
     if (query.length >= 3) {
         const words = query.split(/\s+/).filter(w => w.length > 0);
         filteredEpisodes = filteredEpisodes.filter(ep => {
-            const title = stripTeacherPrefix(ep.title).toLowerCase();
+            const title = normalizeDiacritics(stripTeacherPrefix(ep.title).toLowerCase());
             const pubDate = (ep.pubDate || '').toLowerCase();
-            const recordingType = (ep.recording_type || '').toLowerCase();
-            const description = (ep.description || '').toLowerCase();
+            const recordingType = normalizeDiacritics((ep.recording_type || '').toLowerCase());
+            const description = normalizeDiacritics((ep.description || '').toLowerCase());
             
             // Every word must match at least one property (whole word match)
             return words.every(word => {
@@ -2256,6 +2434,9 @@ async function init() {
     // Initialize tab handlers
     initTabHandlers();
     
+    // Load Pali hints for suggestion module
+    loadPaliHints();
+    
     try {
         // Always fetch fresh data (bypass browser cache)
         const response = await fetch('db/dharmaseed_teachers.json', { cache: 'no-store' });
@@ -2277,6 +2458,9 @@ async function init() {
         if (params.get('teacher') || params.get('talk') || params.get('episode')) {
             // Deep link takes priority
             checkUrlParams();
+        } else if (params.has('archives')) {
+            // Restore archives tab from URL
+            switchTab('talks', true, false);
         } else {
             // No deep link, check for resume state
             checkResumeState();
