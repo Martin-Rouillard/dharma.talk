@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full clone to ensure large files are fetched
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,10 +29,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
+      - name: Debug - Show existing talks count
+        run: |
+          echo "File size before:"
+          ls -lh db/dharmaseed_talks.json || echo "File not found"
+          echo "Talks count before:"
+          python -c "import json; data=json.load(open('db/dharmaseed_talks.json')); print(f'Total: {len(data)}, Latest ID: {data[0][\"id\"] if data else 0}')" || echo "Could not read file"
+
       - name: Run scraper script
         run: |
           cd db
-          python dharmaseed_scrape_talks.py
+          python dharmaseed_scrape_talks.py --limit 200
+
+      - name: Debug - Show updated talks count
+        run: |
+          echo "File size after:"
+          ls -lh db/dharmaseed_talks.json
+          echo "Talks count after:"
+          python -c "import json; data=json.load(open('db/dharmaseed_talks.json')); print(f'Total: {len(data)}, Latest ID: {data[0][\"id\"] if data else 0}')"
 
       - name: Commit and push if changed
         run: |
