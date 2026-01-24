@@ -2,8 +2,8 @@ name: Update Talks Data
 
 on:
   schedule:
-    # Runs every day at 5:00 AM UTC
-    - cron: '0 5 * * *'
+    # Runs every 6 hours to ensure regular updates
+    - cron: '0 */6 * * *'
   workflow_dispatch: # Allow manual trigger
 
 permissions:
