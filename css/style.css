@@ -185,6 +185,11 @@ header {
     transition: color 0.2s ease;
 }
 
+.tab-icon-svg.archive-icon {
+    width: 2.3rem;
+    height: 2.3rem;
+}
+
 .tab-column:hover .tab-icon,
 .tab-column:hover .tab-icon-svg {
     color: var(--text-primary);
