@@ -1421,6 +1421,8 @@ async function selectTeacher(teacherId) {
     document.querySelector('.search-section').style.display = 'none';
     const tabMenu = document.querySelector('.tab-menu-dual');
     if (tabMenu) tabMenu.style.display = 'none';
+    const teachersHeader = document.querySelector('.teachers-header');
+    if (teachersHeader) teachersHeader.style.display = 'none';
     
     // Remove teachers infinite scroll when viewing a teacher
     removeTeachersInfiniteScroll();

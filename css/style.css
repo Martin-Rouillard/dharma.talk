@@ -1016,6 +1016,7 @@ h1 {
 }
 
 .teachers-header {
+    display: block;
     text-align: center;
     font-size: 1.8rem;
     color: var(--text-muted);
