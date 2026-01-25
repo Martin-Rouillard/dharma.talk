@@ -1027,6 +1027,7 @@ function renderTalksList(append = false) {
             <div class="talk-item ${isPlaying ? 'playing' : ''}" 
                  data-id="${talk.id}"
                  onclick="playTalkFromList(${talk.id})">
+                ${photoUrl ? `<div class="bg-blur" style="background-image: url('${photoUrl}')"></div>` : ''}
                 <div class="talk-photo-wrapper">
                     ${photoUrl 
                         ? `<img src="${photoUrl}" alt="${teacherName}" class="talk-teacher-photo" onerror="this.outerHTML='<div class=\\'talk-teacher-placeholder\\'>${initials}</div>'">`

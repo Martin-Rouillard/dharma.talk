@@ -405,6 +405,28 @@ header {
     overflow: hidden;
 }
 
+.talk-item .bg-blur {
+    position: absolute;
+    top: -20px;
+    left: -20px;
+    right: -20px;
+    bottom: -20px;
+    background-size: initial;
+    filter: blur(50px) brightness(.5);
+    opacity: 0.2;
+    z-index: 0;
+    transition: opacity 0.3s;
+}
+
+.talk-item:hover .bg-blur {
+    opacity: 0.5;
+}
+
+.talk-item > *:not(.bg-blur) {
+    position: relative;
+    z-index: 1;
+}
+
 .talk-item:hover {
     background: #00000033;
 }
@@ -570,7 +592,7 @@ h1 {
     background: #4d4d4d0d;
     padding: 0.5rem;
     border-radius: 1rem;
-    margin: 1rem;
+    margin: 0 0 1rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -1031,7 +1053,7 @@ h1 {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 1.25rem;
-    padding: 1rem;
+    /* padding: 1rem; */
 }
 
 
@@ -2036,16 +2058,7 @@ h1 {
         padding: 0.75rem 2.5rem 0.75rem 1rem;
     }
 
-    .playlist-search-icon {
-        display: none;
-    }
-    
-    .playlist-search-icon-btn{
-        display: none;
-    }
-    .search-icon-btn {
-        display: none;
-    }
+
 
     .vanity-url-btn{
         display: none;
