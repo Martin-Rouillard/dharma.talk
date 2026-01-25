@@ -1331,13 +1331,11 @@ function switchTab(tabName, resetFilter = true, updateUrl = true) {
     const popularSection = document.getElementById('popularSection');
     const talksSection = document.getElementById('talksSection');
     const searchSection = document.querySelector('.search-section');
-    const teachersHeader = document.querySelector('.teachers-header');
     
     if (tabName === 'teachers') {
         popularSection.style.display = 'block';
         talksSection.style.display = 'none';
         searchSection.style.display = 'flex';
-        if (teachersHeader) teachersHeader.style.display = 'block';
         
         // Reset background to default Buddha image
         document.body.style.setProperty('--bg-image', "url('https://dharmaseed.org/static/images/buddha_lge.jpg')");
@@ -1458,8 +1456,6 @@ async function selectTeacher(teacherId) {
     document.querySelector('.search-section').style.display = 'none';
     const tabMenu = document.querySelector('.tab-menu-dual');
     if (tabMenu) tabMenu.style.display = 'none';
-    const teachersHeader = document.querySelector('.teachers-header');
-    if (teachersHeader) teachersHeader.style.display = 'none';
     
     // Remove teachers infinite scroll when viewing a teacher
     removeTeachersInfiniteScroll();

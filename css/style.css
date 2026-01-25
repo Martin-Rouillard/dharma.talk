@@ -1020,21 +1020,6 @@ h1 {
     margin-bottom: 2rem;
 }
 
-.teachers-header {
-    display: block;
-    text-align: center;
-    font-size: 1.8rem;
-    color: var(--text-muted);
-    margin-bottom:  2rem ;
-    padding: 0 1rem;
-    font-weight: 400;
-}
-
-.gradient-text {
-    font-weight: 200;
-
-}
-
 .section-title {
     font-size: 1.5rem;
     font-weight: 700;
