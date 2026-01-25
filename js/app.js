@@ -1373,7 +1373,6 @@ function switchTab(tabName, resetFilter = true, updateUrl = true) {
         popularSection.style.display = 'none';
         talksSection.style.display = 'block';
         searchSection.style.display = 'none';
-        if (teachersHeader) teachersHeader.style.display = 'none';
         
         // Reset background to default Buddha image
         document.body.style.setProperty('--bg-image', "url('https://dharmaseed.org/static/images/buddha_lge.jpg')");
