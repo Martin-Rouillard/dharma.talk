@@ -2,7 +2,7 @@ name: Update Talks Data
 
 on:
   schedule:
-    # Runs every hour to ensure regular updates
+    # Runs every hour at minute 47
     - cron: '47 * * * *'
   workflow_dispatch: # Allow manual trigger
   push:
