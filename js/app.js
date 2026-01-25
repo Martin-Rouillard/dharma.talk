@@ -1,8 +1,12 @@
 // Teachers database - loaded from external JSON
 let TEACHERS_DB = [];
 
-// Talks database - loaded from external JSON
+// Talks database - now loaded via API (only stores current view)
 let TALKS_DB = [];
+let totalTalksCount = 0; // Total count from server
+
+// API endpoint for talks
+const TALKS_API_URL = '/.netlify/functions/talks';
 
 // Pali search hints for suggestion module
 let PALI_HINTS = [];
@@ -700,47 +704,21 @@ function animateCounter(targetCount, totalCount, suffix, duration = 1000) {
     countAnimationFrame = requestAnimationFrame(updateCounter);
 }
 
-// Preload talks data in background for episode enrichment (no UI)
+// Preload talks data - now just fetches initial batch from API
 async function preloadTalksData() {
     if (talksLoaded || TALKS_DB.length > 0) return;
     
     try {
-        // Try to load from IndexedDB cache first
-        const cached = await getTalksCache();
-        if (cached) {
-            TALKS_DB = cached.talks;
-            console.log(`Preloaded ${TALKS_DB.length} talks from cache`);
-            
-            // Check if server has newer talks OR if cache is stale
-            const hasNewerTalks = await checkForNewerTalks(cached.talks);
-            const isStale = isCacheStale(cached.timestamp, TALKS_CACHE_MAX_AGE);
-            
-            if (hasNewerTalks === true || (hasNewerTalks === null && isStale)) {
-                console.log(hasNewerTalks ? 'Server has newer talks, refreshing...' : 'Talks cache is stale, refreshing in background...');
-                showToast('Updating database...');
-                await refreshTalksInBackground();
-                hideToast();
-            }
-            return;
-        }
-        
-        // No cache, fetch from server
-        showToast('Downloading database...');
-        const response = await fetch('db/dharmaseed_talks.json', { cache: 'no-store' });
-        const allTalks = await response.json();
-        TALKS_DB = allTalks;
-        
-        // Save to cache
-        await setTalksCache(allTalks);
-        hideToast();
-        console.log(`Preloaded ${TALKS_DB.length} talks for enrichment (cached)`);
+        const data = await fetchTalksFromAPI({ limit: 50 });
+        TALKS_DB = data.talks;
+        totalTalksCount = data.total;
+        console.log(`Preloaded ${TALKS_DB.length} talks from API (${totalTalksCount} total)`);
     } catch (error) {
-        hideToast();
         console.warn('Failed to preload talks data:', error);
     }
 }
 
-// Load talks data - progressive loading for large datasets
+// Load talks data via API - fast initial load
 async function loadTalksData() {
     if (talksLoaded) return;
     
@@ -748,53 +726,37 @@ async function loadTalksData() {
     talksList.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading talks...</p></div>';
     
     try {
-        // Use preloaded data if available
-        let allTalks;
-        if (TALKS_DB.length > 0) {
-            allTalks = TALKS_DB;
-            console.log('Using preloaded talks data');
-        } else {
-            // Try IndexedDB cache first
-            const cached = await getTalksCache();
-            if (cached) {
-                allTalks = cached.talks;
-                TALKS_DB = allTalks;
-                console.log(`Loaded ${TALKS_DB.length} talks from cache`);
-                
-                // Check if server has newer talks OR if cache is stale
-                const hasNewerTalks = await checkForNewerTalks(cached.talks);
-                const isStale = isCacheStale(cached.timestamp, TALKS_CACHE_MAX_AGE);
-                
-                if (hasNewerTalks === true || (hasNewerTalks === null && isStale)) {
-                    console.log(hasNewerTalks ? 'Server has newer talks, refreshing...' : 'Talks cache is stale, refreshing in background...');
-                    refreshTalksInBackground();
-                }
-            } else {
-                // No cache, fetch from server
-                const response = await fetch('db/dharmaseed_talks.json', { cache: 'no-store' });
-                allTalks = await response.json();
-                TALKS_DB = allTalks;
-                
-                // Save to cache
-                await setTalksCache(allTalks);
-                console.log(`Loaded ${TALKS_DB.length} talks from server (cached)`);
-            }
-        }
+        // Fetch initial batch from API (50 most recent)
+        const response = await fetch(`${TALKS_API_URL}?limit=50`);
+        const data = await response.json();
         
-        // Load first batch immediately for fast initial render
+        TALKS_DB = data.talks;
+        totalTalksCount = data.total;
         talksLoaded = true;
         
-        console.log(`Loaded ${TALKS_DB.length} talks`);
-        // Don't update placeholder here - let renderTalksList handle it based on current filter
+        console.log(`Loaded ${TALKS_DB.length} talks from API (${totalTalksCount} total)`);
         renderTalksList();
     } catch (error) {
-        console.error('Error loading talks database:', error);
+        console.error('Error loading talks:', error);
         talksList.innerHTML = `
             <div class="loading">
                 <p>Could not load talks database.</p>
             </div>
         `;
     }
+}
+
+// Fetch talks from API with filters
+async function fetchTalksFromAPI(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.set('limit', params.limit);
+    if (params.offset) queryParams.set('offset', params.offset);
+    if (params.search) queryParams.set('search', params.search);
+    if (params.teacher_id) queryParams.set('teacher_id', params.teacher_id);
+    
+    const url = `${TALKS_API_URL}?${queryParams.toString()}`;
+    const response = await fetch(url);
+    return response.json();
 }
 
 // Get teacher info for talks
@@ -936,69 +898,62 @@ function setTalksFilter(filter) {
     }
 }
 
-// Render talks list with infinite scroll support
-function renderTalksList(append = false) {
+// Render talks list with API-based loading
+async function renderTalksList(append = false) {
+    const talksList = document.getElementById('talksList');
+    
     if (!append) {
-        // Start with all talks
-        let filteredTalks = [...TALKS_DB];
-        
-        // Apply recording type filter
-        if (talksFilterActive !== 'all') {
-            filteredTalks = filteredTalks.filter(talk => {
-                const recordingType = (talk.recording_type || '').toLowerCase();
-                if (talksFilterActive === 'talk') {
-                    return recordingType === 'talk';
-                } else if (talksFilterActive === 'meditation') {
-                    return recordingType === 'meditation' || recordingType === 'guided meditation';
-                } else if (talksFilterActive === 'other') {
-                    return recordingType !== 'talk' && recordingType !== 'meditation' && recordingType !== 'guided meditation';
-                }
-                return true;
-            });
-        }
-        
-        // Apply search filter if query exists
-        if (talksSearchQuery.length >= 3) {
-            const words = normalizeDiacritics(talksSearchQuery.toLowerCase()).split(/\s+/).filter(w => w.length > 0);
-            filteredTalks = filteredTalks.filter(talk => {
-                const teacher = getTalkTeacher(talk.teacher_id);
-                const teacherName = normalizeDiacritics((teacher?.name || '').toLowerCase());
-                const title = normalizeDiacritics(talk.title.toLowerCase());
-                const recordingType = normalizeDiacritics((talk.recording_type || '').toLowerCase());
-                const description = normalizeDiacritics((talk.description || '').toLowerCase());
-                const recDate = (talk.rec_date || '').toLowerCase();
-                
-                // Every word must match at least one property (whole word match)
-                return words.every(word => {
-                    const wordPattern = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-                    return wordPattern.test(title) || 
-                        wordPattern.test(teacherName) ||
-                        wordPattern.test(recordingType) ||
-                        wordPattern.test(description) ||
-                        wordPattern.test(recDate);
-                });
-            });
-        }
-        
-        // Sort by date (most recent first)
-        filteredTalks.sort((a, b) => (b.rec_date || '').localeCompare(a.rec_date || ''));
-        
-        sortedTalks = filteredTalks;
+        // Reset for new query
+        sortedTalks = [];
         talksDisplayed = 0;
+        talksList.innerHTML = '<div class="loading"><div class="loading-spinner"></div><p>Loading...</p></div>';
         
-        // Update search placeholder with count (animated)
-        // Show filtered count when filter is active or when searching
-        if (talksSearchQuery.length >= 3) {
-            animateCounter(filteredTalks.length, TALKS_DB.length, 'audio files...');
-        } else if (talksFilterActive !== 'all') {
-            const filterLabel = talksFilterActive.charAt(0).toUpperCase() + talksFilterActive.slice(1);
-            animateCounter(filteredTalks.length, null, `${filterLabel} files...`);
-        } else {
-            animateCounter(TALKS_DB.length, null, 'audio files...');
+        try {
+            // Build API params
+            const params = { limit: TALKS_BATCH_SIZE };
+            
+            // Add search if present
+            if (talksSearchQuery.length >= 3) {
+                params.search = talksSearchQuery;
+            }
+            
+            // Fetch from API
+            const data = await fetchTalksFromAPI(params);
+            
+            // Apply client-side recording type filter (API doesn't support this yet)
+            let filteredTalks = data.talks;
+            if (talksFilterActive !== 'all') {
+                filteredTalks = filteredTalks.filter(talk => {
+                    const recordingType = (talk.recording_type || '').toLowerCase();
+                    if (talksFilterActive === 'talk') {
+                        return recordingType === 'talk';
+                    } else if (talksFilterActive === 'meditation') {
+                        return recordingType === 'meditation' || recordingType === 'guided meditation';
+                    } else if (talksFilterActive === 'other') {
+                        return recordingType !== 'talk' && recordingType !== 'meditation' && recordingType !== 'guided meditation';
+                    }
+                    return true;
+                });
+            }
+            
+            sortedTalks = filteredTalks;
+            totalTalksCount = data.total;
+            
+            // Update counter
+            if (talksSearchQuery.length >= 3) {
+                animateCounter(data.total, totalTalksCount, 'results...');
+            } else if (talksFilterActive !== 'all') {
+                const filterLabel = talksFilterActive.charAt(0).toUpperCase() + talksFilterActive.slice(1);
+                animateCounter(filteredTalks.length, null, `${filterLabel} files...`);
+            } else {
+                animateCounter(totalTalksCount, null, 'audio files...');
+            }
+        } catch (error) {
+            console.error('Error fetching talks:', error);
+            talksList.innerHTML = '<div class="loading"><p>Error loading talks</p></div>';
+            return;
         }
     }
-    
-    const talksList = document.getElementById('talksList');
     
     if (sortedTalks.length === 0) {
         talksList.innerHTML = `
@@ -1287,7 +1242,7 @@ function removeTalksInfiniteScroll() {
     window.removeEventListener('scroll', handleTalksScroll);
 }
 
-function handleTalksScroll() {
+async function handleTalksScroll() {
     if (currentTab !== 'talks' || isLoadingMoreTalks) return;
     if (talksDisplayed >= sortedTalks.length) return;
     
@@ -1298,7 +1253,31 @@ function handleTalksScroll() {
     // Load more when user is 300px from bottom
     if (scrollY + windowHeight >= documentHeight - 300) {
         isLoadingMoreTalks = true;
-        renderTalksList(true);
+        
+        // If we have more items locally, render them
+        if (talksDisplayed < sortedTalks.length) {
+            renderTalksList(true);
+        } else {
+            // Need to fetch more from API
+            try {
+                const params = { 
+                    limit: TALKS_BATCH_SIZE, 
+                    offset: sortedTalks.length 
+                };
+                if (talksSearchQuery.length >= 3) {
+                    params.search = talksSearchQuery;
+                }
+                
+                const data = await fetchTalksFromAPI(params);
+                if (data.talks.length > 0) {
+                    sortedTalks = [...sortedTalks, ...data.talks];
+                    renderTalksList(true);
+                }
+            } catch (error) {
+                console.error('Error loading more talks:', error);
+            }
+            isLoadingMoreTalks = false;
+        }
     }
 }
 
