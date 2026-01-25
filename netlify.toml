@@ -1,5 +1,9 @@
 [build]
   publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  included_files = ["db/dharmaseed_talks.json"]
 
 # Dharmaseed-style URL redirects
 # /teacher/637/ -> /?teacher=637
