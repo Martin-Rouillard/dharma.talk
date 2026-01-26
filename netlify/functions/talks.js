@@ -51,6 +51,7 @@ exports.handler = async (event, context) => {
         const offset = parseInt(params.offset) || 0;
         const teacherId = params.teacher_id ? parseInt(params.teacher_id) : null;
         const search = params.search ? params.search.toLowerCase() : null;
+        const categories = params.categories ? params.categories.toLowerCase() : null; // Pali categories (title/desc only)
         const talkId = params.id ? parseInt(params.id) : null;
         
         // If requesting a specific talk by ID
@@ -94,8 +95,29 @@ exports.handler = async (event, context) => {
             });
         }
         
+        // Filter by categories (Pali terms - search in title and description ONLY)
+        if (categories) {
+            const categoryTerms = categories.split(/\s+/).filter(term => term.length > 0);
+            
+            filtered = filtered.filter(t => {
+                const title = (t.title || '').toLowerCase();
+                const titleNorm = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const desc = (t.description || '').toLowerCase();
+                const descNorm = desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                
+                // All category terms must match in title OR description (AND logic)
+                return categoryTerms.every(term => {
+                    const termNorm = term.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    return title.includes(term) || 
+                           titleNorm.includes(termNorm) ||
+                           desc.includes(term) ||
+                           descNorm.includes(termNorm);
+                });
+            });
+        }
+        
+        // Filter by search (searches in title, description, teacher name, AND date)
         if (search) {
-            // Split search into terms for AND logic (e.g., "sucitto 2023" finds talks with both)
             const searchTerms = search.split(/\s+/).filter(term => term.length > 0);
             
             filtered = filtered.filter(t => {

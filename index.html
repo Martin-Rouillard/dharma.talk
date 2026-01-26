@@ -106,7 +106,7 @@
 <body>
     <div class="container">
         <header>
-            <a href="https://donorbox.org/dharma-seed-support" target="_blank" class="donate-link">Support Dharmaseed.org ❤️ in its mission to keep offering free Dharma teachings since 1983</a>
+            <a href="https://donorbox.org/dharma-seed-support" target="_blank" class="donate-link">Support Dharmaseed.org ❤️ in its mission to keep offering free Dharma audio teachings since 1983</a>
 
             <div class="logo-icon" style="display: none;">
                <img src="img/icon.svg" class="logo-icon" alt="Dharma.Talk Logo">
@@ -160,6 +160,12 @@
 
         <!-- Talks Section (hidden by default) -->
         <div class="talks-section" id="talksSection" style="display: none;">
+            <!-- Category Tags (horizontal scrollable) -->
+            <div class="category-tags-wrapper">
+                <div class="category-tags" id="categoryTags">
+                    <!-- Populated by JS from pali_search_hints.json -->
+                </div>
+            </div>
             <!-- Suggestion Module -->
             <div class="suggestion-module" id="suggestionModule">
                 <span class="suggestion-text" onclick="handleSuggestionClick()">

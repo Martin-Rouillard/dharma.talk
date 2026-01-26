@@ -655,6 +655,7 @@ let isLoadingMoreTalks = false;
 let sortedTalks = [];
 let talksLoaded = false;
 let talksFilterActive = 'all'; // 'all', 'talk', 'meditation', 'other'
+let activeCategoryTags = []; // Active Pali category filters
 let currentPlaceholderCount = 0; // Track current displayed count for animation
 let countAnimationFrame = null; // Track animation frame for cancellation
 
@@ -752,6 +753,7 @@ async function fetchTalksFromAPI(params = {}) {
     if (params.limit) queryParams.set('limit', params.limit);
     if (params.offset) queryParams.set('offset', params.offset);
     if (params.search) queryParams.set('search', params.search);
+    if (params.categories) queryParams.set('categories', params.categories); // Pali terms (title/desc only)
     if (params.teacher_id) queryParams.set('teacher_id', params.teacher_id);
     if (params.recording_type) queryParams.set('recording_type', params.recording_type);
     
@@ -790,9 +792,21 @@ function getTalkInitials(name) {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
+// Get combined search query for highlighting (includes manual search + active categories)
+function getHighlightQuery() {
+    const parts = [];
+    if (talksSearchQuery && talksSearchQuery.length >= 3) {
+        parts.push(talksSearchQuery);
+    }
+    if (activeCategoryTags.length > 0) {
+        parts.push(...activeCategoryTags);
+    }
+    return parts.join(' ');
+}
+
 // Highlight search terms in text (substring matching, supports diacritics)
 function highlightSearchTerms(text, searchQuery) {
-    if (!text || !searchQuery || searchQuery.length < 3) return text || '';
+    if (!text || !searchQuery || searchQuery.length < 2) return text || '';
     const words = normalizeDiacritics(searchQuery.toLowerCase()).split(/\s+/).filter(w => w.length > 0);
     if (words.length === 0) return text;
     
@@ -913,9 +927,14 @@ async function renderTalksList(append = false) {
             // Build API params
             const params = { limit: TALKS_BATCH_SIZE };
             
-            // Add search if present
-            if (talksSearchQuery.length >= 3) {
+            // Add manual search if present (searches in teacher, title, desc, date)
+            if (talksSearchQuery.length > 0) {
                 params.search = talksSearchQuery;
+            }
+            
+            // Add category tags if present (searches in title and desc ONLY)
+            if (activeCategoryTags.length > 0) {
+                params.categories = activeCategoryTags.join(' ');
             }
             
             // Add recording type filter to API params
@@ -930,7 +949,8 @@ async function renderTalksList(append = false) {
             totalTalksCount = data.total;
             
             // Update counter with server total
-            if (talksSearchQuery.length >= 3) {
+            const hasFilters = talksSearchQuery.length > 0 || activeCategoryTags.length > 0;
+            if (hasFilters) {
                 animateCounter(data.total, null, 'results...');
             } else if (talksFilterActive !== 'all') {
                 const filterLabel = talksFilterActive.charAt(0).toUpperCase() + talksFilterActive.slice(1);
@@ -985,8 +1005,8 @@ async function renderTalksList(append = false) {
                     </div>
                 </div>
                 <div class="talk-main">
-                    <div class="talk-title">${highlightSearchTerms(talk.title, talksSearchQuery)}</div>
-                    ${talk.description ? `<div class="talk-description">${highlightSearchTerms(talk.description, talksSearchQuery)}</div>` : ''}
+                    <div class="talk-title">${highlightSearchTerms(talk.title, getHighlightQuery())}</div>
+                    ${talk.description ? `<div class="talk-description">${highlightSearchTerms(talk.description, getHighlightQuery())}</div>` : ''}
                     <div class="talk-meta">
                         <span class="talk-teacher-name" onclick="event.stopPropagation(); selectTeacher(${talk.teacher_id})">${highlightSearchTerms(teacherName, talksSearchQuery)}</span>
                         ${talk.recording_type ? `<span class="recording-type-badge">${talk.recording_type}</span>` : ''}
@@ -1074,20 +1094,21 @@ function playTalkFromList(talkId) {
 function handleTalksSearch(value) {
     clearTimeout(talksSearchDebounceTimer);
     
-    // Only search if 3+ characters or empty (to reset)
-    if (value.length >= 3 || value.length === 0) {
+    // Search when: 3+ characters typed, or clearing (empty), or we have active category tags
+    const shouldSearch = value.length >= 3 || value.length === 0 || activeCategoryTags.length > 0;
+    
+    if (shouldSearch) {
         talksSearchDebounceTimer = setTimeout(() => {
-            talksSearchQuery = value;
-            renderTalksList(false);
-            updateTalksSearchIconState();
-        }, 500);
+            // Use combined search with category tags
+            updateCombinedSearch();
+        }, 300);
     }
 }
 
 // Handle click on talks search/clear icon
 function handleTalksSearchIconClick() {
     const talksSearchInput = document.getElementById('talksSearchInput');
-    if (talksSearchQuery.length > 0) {
+    if (talksSearchQuery.length > 0 || activeCategoryTags.length > 0) {
         clearTalksSearch();
     } else {
         talksSearchInput.focus();
@@ -1099,6 +1120,9 @@ function clearTalksSearch() {
     const talksSearchInput = document.getElementById('talksSearchInput');
     talksSearchQuery = '';
     talksSearchInput.value = '';
+    // Also clear category tags
+    activeCategoryTags = [];
+    updateCategoryTagsUI();
     renderTalksList(false);
     updateTalksSearchIconState();
     talksSearchInput.focus();
@@ -1113,6 +1137,10 @@ function resetTalksSearchAndSuggestion() {
         talksSearchInput.value = '';
         updateTalksSearchIconState();
     }
+    
+    // Reset category tags
+    activeCategoryTags = [];
+    updateCategoryTagsUI();
     
     // Reset suggestion to initial state
     suggestionRevealed = false;
@@ -1130,8 +1158,10 @@ function resetTalksSearchAndSuggestion() {
 // Update talks search icon state
 function updateTalksSearchIconState() {
     const iconBtn = document.getElementById('talksSearchIconBtn');
+    const searchInput = document.getElementById('talksSearchInput');
+    const hasText = (searchInput && searchInput.value.trim().length > 0) || activeCategoryTags.length > 0;
     if (iconBtn) {
-        iconBtn.classList.toggle('has-text', talksSearchQuery.length > 0);
+        iconBtn.classList.toggle('has-text', hasText);
     }
 }
 
@@ -1141,10 +1171,118 @@ async function loadPaliHints() {
         const response = await fetch('/db/pali_search_hints.json');
         const data = await response.json();
         PALI_HINTS = data.terms || [];
-        // Don't show suggestion on load, wait for user click
+        // Initialize category tags UI
+        renderCategoryTags();
     } catch (e) {
         console.warn('Failed to load Pali hints:', e);
     }
+}
+
+// Render category tags from PALI_HINTS
+// Emoji mapping for Pali terms
+const PALI_EMOJIS = {
+    'Mettā': '❤️',
+    'Sutta': '☸️',
+    'Dukkha': '😔',
+    'Saṅgha': '👥',
+    'Citta': '🧘‍♂️',
+    'Karma': '🌱',
+    'Samādhi': '🎯',
+    'Brahmavihāra': '🪷',
+    'Muditā': '😃',
+    'Vipassanā': '👁️',
+    'Vedanā': '🎨',
+    'Samatha': '🌸',
+    'Anattā': '🫥',
+    'Satipaṭṭhāna': '🧭',
+    'Kamma': '🌱',
+    'Jhāna': '✨',
+    'Sīla': '😇',
+    'Sati': '🔔',
+    'Nibbāna': '🌕',
+    'Anicca': '🍂',
+    'Ānāpānasati': '🫁',
+    'Karuṇā': '🙏',
+    'Dāna': '🎁',
+    'Pāramī': '💎',
+    'Upekkhā': '⚖️',
+    'Papañca': '🙉',
+    'Bodhicitta': '🕊️',
+    'Saṃsāra': '♾️',
+    'Saṅkhāra': '🌀',
+    'Viriya': '💪',
+    'Paññā': '☀️',
+    'Taṇhā': '🔥',
+    'Pīti': '😊',
+    'Sukha': '😌',
+    'Rūpa': '🪨',
+    'Nāma': '💭',
+    'Khandha': '⛰️',
+    'Pāramitā': '💎',
+    'Cetanā': '🎯',
+    'Bojjhaṅga': '🌟',
+    'Adhiṭṭhāna': '🏔️',
+    'Magga': '🛤️',
+    'Khanti': '🐢',
+    'Yoniso Manasikāra': '🔍',
+    'Avijjā': '🌑'
+};
+
+function renderCategoryTags() {
+    const container = document.getElementById('categoryTags');
+    if (!container || PALI_HINTS.length === 0) return;
+    
+    container.innerHTML = PALI_HINTS.map(term => {
+        const emoji = PALI_EMOJIS[term.pali] || '📿';
+        return `
+        <button class="category-tag" data-pali="${term.pali}" onclick="toggleCategoryTag('${term.pali.replace(/'/g, "\\'")}')">
+            <span class="tag-emoji">${emoji}</span>
+            <span class="tag-pali">${term.pali}</span>
+            <span class="tag-english">${term.english}</span>
+        </button>
+    `}).join('');
+}
+
+// Toggle category tag
+function toggleCategoryTag(pali) {
+    const index = activeCategoryTags.indexOf(pali);
+    
+    if (index === -1) {
+        // Single selection: clear all and add this one
+        activeCategoryTags.length = 0;
+        activeCategoryTags.push(pali);
+    } else {
+        // Remove tag (toggle off)
+        activeCategoryTags.splice(index, 1);
+    }
+    
+    // Update UI
+    updateCategoryTagsUI();
+    
+    // Build combined search: keyword search + active category tags
+    updateCombinedSearch();
+}
+
+// Update category tags UI (active states)
+function updateCategoryTagsUI() {
+    document.querySelectorAll('.category-tag').forEach(btn => {
+        const pali = btn.dataset.pali;
+        btn.classList.toggle('active', activeCategoryTags.includes(pali));
+    });
+}
+
+// Update combined search (keyword + category tags)
+function updateCombinedSearch() {
+    // Get manual search from input
+    const searchInput = document.getElementById('talksSearchInput');
+    const manualSearch = searchInput ? searchInput.value.trim() : '';
+    
+    // Set search query (manual search only - includes teacher, title, desc, date)
+    talksSearchQuery = manualSearch;
+    
+    // Trigger search (renderTalksList will use activeCategoryTags separately)
+    renderTalksList(false);
+    updateTalksSearchIconState();
 }
 
 // Track if suggestion has been revealed
@@ -1254,9 +1392,15 @@ async function handleTalksScroll() {
                     limit: TALKS_BATCH_SIZE, 
                     offset: sortedTalks.length 
                 };
-                if (talksSearchQuery.length >= 3) {
+                // Add manual search
+                if (talksSearchQuery.length > 0) {
                     params.search = talksSearchQuery;
                 }
+                // Add category tags
+                if (activeCategoryTags.length > 0) {
+                    params.categories = activeCategoryTags.join(' ');
+                }
+                // Add recording type filter
                 if (talksFilterActive !== 'all') {
                     params.recording_type = talksFilterActive;
                 }

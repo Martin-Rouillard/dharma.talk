@@ -290,9 +290,103 @@ header {
     border-radius: 1px;
 }
 
+/* Category Tags (Pali terms filter) */
+.category-tags-wrapper {
+    position: relative;
+    margin: 0 -1rem 0.75rem;
+    padding: 0 1rem;
+    overflow: hidden;
+}
+
+.category-tags-wrapper::before,
+.category-tags-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.category-tags-wrapper::before {
+    left: 0;
+    background: linear-gradient(to right, var(--bg-primary), transparent);
+}
+
+.category-tags-wrapper::after {
+    right: 0;
+    background: linear-gradient(to left, var(--bg-primary), transparent);
+}
+
+.category-tags {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.5rem 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-behavior: smooth;
+}
+
+.category-tags::-webkit-scrollbar {
+    display: none;
+}
+
+.category-tag {
+    flex-shrink: 0;
+    background: var(--bg-elevated);
+    border: 1px solid transparent;
+    border-radius: 1rem;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    min-width: 70px;
+}
+
+.category-tag:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.category-tag.active {
+    /* background: var(--accent); */
+    color: var(--accent);
+    border-color: var(--accent);
+    font-weight: 500;
+}
+
+.category-tag .tag-emoji {
+    font-size: 1.5rem;
+    line-height: 1;
+    margin-bottom: .5rem;
+}
+
+.category-tag .tag-pali {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.category-tag .tag-english {
+    font-size: 0.6rem;
+    opacity: 0.7;
+}
+
+.category-tag.active .tag-english {
+    opacity: 0.8;
+}
+
 /* Suggestion Module */
 .suggestion-module {
-    display: flex;
+    display: none;
     flex-direction: column;
     align-items: center;
     margin-bottom: 0.5rem;
