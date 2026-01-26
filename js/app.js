@@ -793,9 +793,15 @@ function setTalksFilter(filter) {
     }
 }
 
+// Track current render request to prevent duplicates from race conditions
+let currentRenderRequestId = 0;
+
 // Render talks list with API-based loading
 async function renderTalksList(append = false) {
     const talksList = document.getElementById('talksList');
+    
+    // Generate unique request ID for this render
+    const requestId = ++currentRenderRequestId;
     
     if (!append) {
         // Reset for new query
@@ -825,6 +831,12 @@ async function renderTalksList(append = false) {
             // Fetch from API (server handles filtering now)
             const data = await fetchTalksFromAPI(params);
             
+            // Check if this request is still current (prevent race condition duplicates)
+            if (requestId !== currentRenderRequestId) {
+                console.log('Stale render request ignored:', requestId);
+                return;
+            }
+            
             sortedTalks = data.talks;
             totalTalksCount = data.total;
             
@@ -843,6 +855,11 @@ async function renderTalksList(append = false) {
             talksList.innerHTML = '<div class="loading"><p>Error loading talks</p></div>';
             return;
         }
+    }
+    
+    // Also check before rendering (for append case)
+    if (requestId !== currentRenderRequestId) {
+        return;
     }
     
     if (sortedTalks.length === 0) {
