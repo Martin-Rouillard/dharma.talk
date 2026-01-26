@@ -2,9 +2,9 @@ name: Update Talks Data
 
 on:
   schedule:
-    # Runs every 6 hours at minute 0
+    # Runs every 6 hours at minute 0 (00:00, 06:00, 12:00, 18:00 UTC)
     - cron: '0 */6 * * *'
-  workflow_dispatch:
+  workflow_dispatch:  # Allow manual trigger
 
 permissions:
   contents: write
