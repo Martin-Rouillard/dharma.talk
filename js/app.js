@@ -753,6 +753,7 @@ async function fetchTalksFromAPI(params = {}) {
     if (params.offset) queryParams.set('offset', params.offset);
     if (params.search) queryParams.set('search', params.search);
     if (params.teacher_id) queryParams.set('teacher_id', params.teacher_id);
+    if (params.recording_type) queryParams.set('recording_type', params.recording_type);
     
     const url = `${TALKS_API_URL}?${queryParams.toString()}`;
     const response = await fetch(url);
@@ -789,7 +790,7 @@ function getTalkInitials(name) {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
-// Highlight search terms in text (whole words only, supports diacritics)
+// Highlight search terms in text (substring matching, supports diacritics)
 function highlightSearchTerms(text, searchQuery) {
     if (!text || !searchQuery || searchQuery.length < 3) return text || '';
     const words = normalizeDiacritics(searchQuery.toLowerCase()).split(/\s+/).filter(w => w.length > 0);
@@ -799,10 +800,11 @@ function highlightSearchTerms(text, searchQuery) {
     const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     const normalizedText = normalizeDiacritics(text.toLowerCase());
     
-    // Find all matches for all words at once
+    // Find all substring matches for all words
     const allMatches = [];
     escapedWords.forEach(word => {
-        const pattern = new RegExp(`\\b${word}\\b`, 'gi');
+        // Use substring matching (no word boundaries)
+        const pattern = new RegExp(word, 'gi');
         let match;
         while ((match = pattern.exec(normalizedText)) !== null) {
             allMatches.push({ start: match.index, end: match.index + match[0].length });
@@ -874,8 +876,7 @@ function formatTalkDate(dateStr) {
 function setTalksFilter(filter) {
     talksFilterActive = filter;
     
-    // Reset search and suggestion
-    resetTalksSearchAndSuggestion();
+    // Keep search query when changing filter (don't reset)
     
     // Update talks filter tab UI
     document.querySelectorAll('#talksFilterTabs .filter-item').forEach(btn => {
@@ -917,34 +918,23 @@ async function renderTalksList(append = false) {
                 params.search = talksSearchQuery;
             }
             
-            // Fetch from API
-            const data = await fetchTalksFromAPI(params);
-            
-            // Apply client-side recording type filter (API doesn't support this yet)
-            let filteredTalks = data.talks;
+            // Add recording type filter to API params
             if (talksFilterActive !== 'all') {
-                filteredTalks = filteredTalks.filter(talk => {
-                    const recordingType = (talk.recording_type || '').toLowerCase();
-                    if (talksFilterActive === 'talk') {
-                        return recordingType === 'talk';
-                    } else if (talksFilterActive === 'meditation') {
-                        return recordingType === 'meditation' || recordingType === 'guided meditation';
-                    } else if (talksFilterActive === 'other') {
-                        return recordingType !== 'talk' && recordingType !== 'meditation' && recordingType !== 'guided meditation';
-                    }
-                    return true;
-                });
+                params.recording_type = talksFilterActive;
             }
             
-            sortedTalks = filteredTalks;
+            // Fetch from API (server handles filtering now)
+            const data = await fetchTalksFromAPI(params);
+            
+            sortedTalks = data.talks;
             totalTalksCount = data.total;
             
-            // Update counter
+            // Update counter with server total
             if (talksSearchQuery.length >= 3) {
-                animateCounter(data.total, totalTalksCount, 'results...');
+                animateCounter(data.total, null, 'results...');
             } else if (talksFilterActive !== 'all') {
                 const filterLabel = talksFilterActive.charAt(0).toUpperCase() + talksFilterActive.slice(1);
-                animateCounter(filteredTalks.length, null, `${filterLabel} files...`);
+                animateCounter(data.total, null, `${filterLabel} files...`);
             } else {
                 animateCounter(totalTalksCount, null, 'audio files...');
             }
@@ -1244,7 +1234,6 @@ function removeTalksInfiniteScroll() {
 
 async function handleTalksScroll() {
     if (currentTab !== 'talks' || isLoadingMoreTalks) return;
-    if (talksDisplayed >= sortedTalks.length) return;
     
     const scrollY = window.scrollY;
     const windowHeight = window.innerHeight;
@@ -1254,11 +1243,12 @@ async function handleTalksScroll() {
     if (scrollY + windowHeight >= documentHeight - 300) {
         isLoadingMoreTalks = true;
         
-        // If we have more items locally, render them
+        // If we have more items locally to render, render them
         if (talksDisplayed < sortedTalks.length) {
-            renderTalksList(true);
-        } else {
-            // Need to fetch more from API
+            await renderTalksList(true);
+        } 
+        // Otherwise fetch more from API if there are more on server
+        else if (sortedTalks.length < totalTalksCount) {
             try {
                 const params = { 
                     limit: TALKS_BATCH_SIZE, 
@@ -1267,17 +1257,21 @@ async function handleTalksScroll() {
                 if (talksSearchQuery.length >= 3) {
                     params.search = talksSearchQuery;
                 }
+                if (talksFilterActive !== 'all') {
+                    params.recording_type = talksFilterActive;
+                }
                 
                 const data = await fetchTalksFromAPI(params);
                 if (data.talks.length > 0) {
                     sortedTalks = [...sortedTalks, ...data.talks];
-                    renderTalksList(true);
+                    await renderTalksList(true);
                 }
             } catch (error) {
                 console.error('Error loading more talks:', error);
             }
-            isLoadingMoreTalks = false;
         }
+        
+        isLoadingMoreTalks = false;
     }
 }
 
@@ -1409,6 +1403,11 @@ function initTabHandlers() {
     // Add keyboard handler for talks search
     const talksSearchInput = document.getElementById('talksSearchInput');
     if (talksSearchInput) {
+        // Handle input for search (debounced API call)
+        talksSearchInput.addEventListener('input', (e) => {
+            handleTalksSearch(e.target.value.trim());
+        });
+        
         talksSearchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 clearTalksSearch();

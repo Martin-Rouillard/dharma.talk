@@ -3,6 +3,7 @@ const path = require('path');
 
 // Load talks data once at cold start
 let talksData = null;
+let teachersMap = null;
 
 function loadTalks() {
     if (!talksData) {
@@ -11,6 +12,20 @@ function loadTalks() {
         talksData = JSON.parse(data);
     }
     return talksData;
+}
+
+function loadTeachers() {
+    if (!teachersMap) {
+        const filePath = path.join(__dirname, '../../db/dharmaseed_teachers.json');
+        const data = fs.readFileSync(filePath, 'utf8');
+        const parsed = JSON.parse(data);
+        // Create a map of teacher_id -> teacher name for fast lookup
+        teachersMap = {};
+        (parsed.teachers || []).forEach(t => {
+            teachersMap[t.id] = t.name || '';
+        });
+    }
+    return teachersMap;
 }
 
 exports.handler = async (event, context) => {
@@ -28,6 +43,7 @@ exports.handler = async (event, context) => {
 
     try {
         const talks = loadTalks();
+        const teachers = loadTeachers();
         const params = event.queryStringParameters || {};
         
         // Parse parameters
@@ -62,25 +78,56 @@ exports.handler = async (event, context) => {
             filtered = filtered.filter(t => t.teacher_id === teacherId);
         }
         
+        // Filter by recording type (talk, meditation, other)
+        const recordingType = params.recording_type ? params.recording_type.toLowerCase() : null;
+        if (recordingType) {
+            filtered = filtered.filter(t => {
+                const type = (t.recording_type || '').toLowerCase();
+                if (recordingType === 'talk') {
+                    return type === 'talk';
+                } else if (recordingType === 'meditation') {
+                    return type === 'meditation' || type === 'guided meditation';
+                } else if (recordingType === 'other') {
+                    return type !== 'talk' && type !== 'meditation' && type !== 'guided meditation';
+                }
+                return true;
+            });
+        }
+        
         if (search) {
-            const searchNormalized = search.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            // Split search into terms for AND logic (e.g., "sucitto 2023" finds talks with both)
+            const searchTerms = search.split(/\s+/).filter(term => term.length > 0);
+            
             filtered = filtered.filter(t => {
                 const title = (t.title || '').toLowerCase();
                 const titleNorm = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
                 const desc = (t.description || '').toLowerCase();
                 const descNorm = desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const teacherName = (teachers[t.teacher_id] || '').toLowerCase();
+                const teacherNorm = teacherName.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const date = (t.rec_date || '').toLowerCase();
                 
-                return title.includes(search) || 
-                       titleNorm.includes(searchNormalized) ||
-                       desc.includes(search) ||
-                       descNorm.includes(searchNormalized);
+                // All search terms must match (AND logic)
+                return searchTerms.every(term => {
+                    const termNorm = term.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    return title.includes(term) || 
+                           titleNorm.includes(termNorm) ||
+                           desc.includes(term) ||
+                           descNorm.includes(termNorm) ||
+                           teacherName.includes(term) ||
+                           teacherNorm.includes(termNorm) ||
+                           date.includes(term);
+                });
             });
         }
         
         // Get total count before pagination
         const total = filtered.length;
         
-        // Apply pagination (talks are already sorted by date desc in the JSON)
+        // Sort by date (most recent first)
+        filtered.sort((a, b) => (b.rec_date || '').localeCompare(a.rec_date || ''));
+        
+        // Apply pagination
         const paginated = filtered.slice(offset, offset + limit);
         
         return {

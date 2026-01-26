@@ -3,7 +3,7 @@
   functions = "netlify/functions"
 
 [functions]
-  included_files = ["db/dharmaseed_talks.json"]
+  included_files = ["db/dharmaseed_talks.json", "db/dharmaseed_teachers.json"]
 
 # Dharmaseed-style URL redirects
 # /teacher/637/ -> /?teacher=637

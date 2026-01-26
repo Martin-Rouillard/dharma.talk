@@ -2,7 +2,8 @@ name: Update Talks Data
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    # Runs every 6 hours at minute 0
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 permissions:
