@@ -516,7 +516,7 @@ header {
     opacity: 0.5;
 }
 
-.talk-item > *:not(.bg-blur) {
+.talk-item > *:not(.bg-blur):not(.talk-right) {
     position: relative;
     z-index: 1;
 }
@@ -2166,15 +2166,18 @@ h1 {
         padding: 0;
     }
 
-    .talk-right {
-        display: flex;
-        flex-direction: column-reverse;
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        text-align: right;
-        gap: 0;
-    }
+.talk-right {
+    display: flex;
+    flex-direction: column-reverse;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    text-align: right;
+    /* gap: 1rem; */
+    justify-content: flex-end;
+    position: absolute;
+    line-height: 1;
+}
 
     .talk-date, .talk-duration {
         font-size: .75rem;
