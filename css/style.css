@@ -309,15 +309,7 @@ header {
     z-index: 1;
 }
 
-.category-tags-wrapper::before {
-    left: 0;
-    background: linear-gradient(to right, var(--bg-primary), transparent);
-}
 
-.category-tags-wrapper::after {
-    right: 0;
-    background: linear-gradient(to left, var(--bg-primary), transparent);
-}
 
 .category-tags {
     display: flex;

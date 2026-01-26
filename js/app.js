@@ -1,9 +1,8 @@
 // Teachers database - loaded from external JSON
 let TEACHERS_DB = [];
 
-// Talks database - now loaded via API (only stores current view)
-let TALKS_DB = [];
-let totalTalksCount = 0; // Total count from server
+// Total talks count from server
+let totalTalksCount = 0;
 
 // API endpoint for talks
 const TALKS_API_URL = '/.netlify/functions/talks';
@@ -25,12 +24,6 @@ function normalizeDiacritics(str) {
 const TEACHERS_CACHE_KEY = 'dharmaseed_teachers_cache';
 const TEACHERS_TIMESTAMP_KEY = 'dharmaseed_teachers_timestamp';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
-
-// Talks data caching (IndexedDB - for large datasets)
-const TALKS_DB_NAME = 'dharmaseed_talks_db';
-const TALKS_STORE_NAME = 'talks';
-const TALKS_DB_VERSION = 1;
-const TALKS_CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours (talks update more frequently)
 
 function getTeachersCache() {
     try {
@@ -56,131 +49,6 @@ function setTeachersCache(teachers) {
 
 function isCacheStale(timestamp, maxAge = CACHE_MAX_AGE) {
     return Date.now() - timestamp > maxAge;
-}
-
-// IndexedDB helpers for talks cache
-function openTalksDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(TALKS_DB_NAME, TALKS_DB_VERSION);
-        
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
-        
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains(TALKS_STORE_NAME)) {
-                db.createObjectStore(TALKS_STORE_NAME, { keyPath: 'key' });
-            }
-        };
-    });
-}
-
-async function getTalksCache() {
-    try {
-        const db = await openTalksDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(TALKS_STORE_NAME, 'readonly');
-            const store = transaction.objectStore(TALKS_STORE_NAME);
-            const request = store.get('talks_data');
-            
-            request.onerror = () => {
-                db.close();
-                reject(request.error);
-            };
-            request.onsuccess = () => {
-                db.close();
-                const result = request.result;
-                if (result && result.talks && result.timestamp) {
-                    resolve({ talks: result.talks, timestamp: result.timestamp });
-                } else {
-                    resolve(null);
-                }
-            };
-        });
-    } catch (e) {
-        console.warn('Failed to read talks cache:', e);
-        return null;
-    }
-}
-
-async function setTalksCache(talks) {
-    try {
-        const db = await openTalksDB();
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction(TALKS_STORE_NAME, 'readwrite');
-            const store = transaction.objectStore(TALKS_STORE_NAME);
-            const request = store.put({
-                key: 'talks_data',
-                talks: talks,
-                timestamp: Date.now()
-            });
-            
-            request.onerror = () => {
-                db.close();
-                reject(request.error);
-            };
-            request.onsuccess = () => {
-                db.close();
-                resolve();
-            };
-        });
-    } catch (e) {
-        console.warn('Failed to save talks cache:', e);
-    }
-}
-
-// Background refresh for talks: update cache without disrupting playback
-async function refreshTalksInBackground() {
-    try {
-        const response = await fetch('db/dharmaseed_talks.json', { cache: 'no-store' });
-        const talks = await response.json();
-        await setTalksCache(talks);
-        console.log('Talks cache refreshed in background');
-        
-        // If user is NOT actively playing, update the in-memory data
-        if (audio.paused) {
-            TALKS_DB = talks;
-            console.log('Updated in-memory talks data');
-        } else {
-            // Schedule update for when audio pauses
-            audio.addEventListener('pause', function onPause() {
-                TALKS_DB = talks;
-                console.log('Updated in-memory talks data after pause');
-            }, { once: true });
-        }
-        return talks;
-    } catch (e) {
-        console.warn('Talks background refresh failed:', e);
-        return null;
-    }
-}
-
-// Check if server has newer talks than our cache
-async function checkForNewerTalks(cachedTalks) {
-    try {
-        // Fetch just the first part of the JSON to get the latest ID
-        const response = await fetch('db/dharmaseed_talks.json', { 
-            cache: 'no-store',
-            headers: { 'Range': 'bytes=0-500' } // Just get first 500 bytes
-        });
-        
-        // If range not supported, fall back to checking staleness
-        if (response.status !== 206) {
-            return null; // Can't determine, let staleness check handle it
-        }
-        
-        const partial = await response.text();
-        // Extract first ID from JSON array: [{"id": 12345, ...
-        const match = partial.match(/"id"\s*:\s*(\d+)/);
-        if (match) {
-            const serverLatestId = parseInt(match[1]);
-            const cacheLatestId = cachedTalks[0]?.id || 0;
-            return serverLatestId > cacheLatestId;
-        }
-    } catch (e) {
-        console.warn('Could not check for newer talks:', e);
-    }
-    return null; // Unknown, fall back to staleness check
 }
 
 // Background refresh: update cache without disrupting playback
@@ -705,15 +573,15 @@ function animateCounter(targetCount, totalCount, suffix, duration = 1000) {
     countAnimationFrame = requestAnimationFrame(updateCounter);
 }
 
-// Preload talks data - now just fetches initial batch from API
+// Preload talks data - fetches initial batch from API into sortedTalks
 async function preloadTalksData() {
-    if (talksLoaded || TALKS_DB.length > 0) return;
+    if (talksLoaded || sortedTalks.length > 0) return;
     
     try {
         const data = await fetchTalksFromAPI({ limit: 50 });
-        TALKS_DB = data.talks;
+        sortedTalks = data.talks;
         totalTalksCount = data.total;
-        console.log(`Preloaded ${TALKS_DB.length} talks from API (${totalTalksCount} total)`);
+        console.log(`Preloaded ${sortedTalks.length} talks from API (${totalTalksCount} total)`);
     } catch (error) {
         console.warn('Failed to preload talks data:', error);
     }
@@ -731,11 +599,11 @@ async function loadTalksData() {
         const response = await fetch(`${TALKS_API_URL}?limit=50`);
         const data = await response.json();
         
-        TALKS_DB = data.talks;
+        sortedTalks = data.talks;
         totalTalksCount = data.total;
         talksLoaded = true;
         
-        console.log(`Loaded ${TALKS_DB.length} talks from API (${totalTalksCount} total)`);
+        console.log(`Loaded ${sortedTalks.length} talks from API (${totalTalksCount} total)`);
         renderTalksList();
     } catch (error) {
         console.error('Error loading talks:', error);
@@ -767,9 +635,21 @@ function getTalkTeacher(teacherId) {
     return TEACHERS_DB.find(t => t.id === teacherId) || null;
 }
 
-// Get talk info from TALKS_DB by ID
+// Get talk info by ID from current results
 function getTalkInfo(talkId) {
-    return TALKS_DB.find(t => t.id === talkId) || null;
+    return sortedTalks.find(t => t.id === talkId) || null;
+}
+
+// Fetch a single talk by ID from API
+async function fetchTalkById(talkId) {
+    try {
+        const response = await fetch(`${TALKS_API_URL}?id=${talkId}`);
+        const data = await response.json();
+        return data.talk || null;
+    } catch (error) {
+        console.warn('Failed to fetch talk by ID:', error);
+        return null;
+    }
 }
 
 // Enrich episode with data from talks.json (recording_type, description)
@@ -1032,7 +912,8 @@ async function renderTalksList(append = false) {
 
 // Play talk from the talks list
 function playTalkFromList(talkId) {
-    const talk = TALKS_DB.find(t => t.id === talkId);
+    // Search in sortedTalks (current displayed results)
+    const talk = sortedTalks.find(t => t.id === talkId);
     if (!talk) return;
     
     // Clear teacher playlist state to avoid conflicts
@@ -2702,24 +2583,32 @@ async function acceptResume(teacherId, talkId, position, isNearEnd, isArchiveTal
     if (isArchiveTalk) {
         switchTab('talks', false);
         
-        const checkAndResumeTalk = () => {
-            if (talksLoaded && TALKS_DB.length > 0) {
-                const talk = TALKS_DB.find(t => t.id === talkId);
+        const checkAndResumeTalk = async () => {
+            // First check sortedTalks, then fetch from API if needed
+            let talk = sortedTalks.find(t => t.id === talkId);
+            if (!talk) {
+                talk = await fetchTalkById(talkId);
                 if (talk) {
-                    if (!isNearEnd) {
-                        // Play and resume at position
-                        playTalkFromList(talkId);
-                        // Position is restored by playTalkFromList via saved progress
-                    }
-                    // Scroll to the talk
-                    setTimeout(() => {
-                        const talkEl = document.querySelector(`.talk-item[data-id="${talkId}"]`);
-                        if (talkEl) {
-                            talkEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                    }, 100);
+                    // Add to sortedTalks so playTalkFromList can find it
+                    sortedTalks.unshift(talk);
                 }
-            } else {
+            }
+            
+            if (talk) {
+                if (!isNearEnd) {
+                    // Play and resume at position
+                    playTalkFromList(talkId);
+                    // Position is restored by playTalkFromList via saved progress
+                }
+                // Scroll to the talk
+                setTimeout(() => {
+                    const talkEl = document.querySelector(`.talk-item[data-id="${talkId}"]`);
+                    if (talkEl) {
+                        talkEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
+            } else if (!talksLoaded) {
+                // Wait for talks to load and retry
                 setTimeout(checkAndResumeTalk, 500);
             }
         };
@@ -2759,32 +2648,23 @@ async function checkUrlParams() {
     let teacherId = params.get('teacher');
     const talkId = params.get('talk') || params.get('episode'); // Support both for backwards compat
     
-    // If only talk ID provided, find the teacher from TALKS_DB
+    // If only talk ID provided, find the teacher from API
     if (!teacherId && talkId) {
         const targetTalkId = parseInt(talkId);
         
-        // Wait for TALKS_DB to be loaded
-        const waitForTalksDB = async () => {
-            // If not loaded yet, trigger preload and wait
-            if (TALKS_DB.length === 0) {
-                await preloadTalksData();
-            }
+        // Fetch talk from API to get teacher_id
+        const talk = await fetchTalkById(targetTalkId);
+        if (talk && talk.teacher_id) {
+            teacherId = talk.teacher_id.toString();
+            console.log(`Found teacher ${teacherId} for talk ${talkId}`);
             
-            const talk = TALKS_DB.find(t => t.id === targetTalkId);
-            if (talk && talk.teacher_id) {
-                teacherId = talk.teacher_id.toString();
-                console.log(`Found teacher ${teacherId} for talk ${talkId}`);
-                
-                // Update URL to include teacher for better sharing
-                const newUrl = new URL(window.location);
-                newUrl.searchParams.set('teacher', teacherId);
-                window.history.replaceState({}, '', newUrl);
-            } else {
-                console.warn('Could not find teacher for talk:', talkId);
-            }
-        };
-        
-        await waitForTalksDB();
+            // Update URL to include teacher for better sharing
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('teacher', teacherId);
+            window.history.replaceState({}, '', newUrl);
+        } else {
+            console.warn('Could not find teacher for talk:', talkId);
+        }
     }
     
     if (teacherId) {
