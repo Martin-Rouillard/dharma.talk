@@ -1122,6 +1122,11 @@ function renderCategoryTags() {
             <span class="tag-english">${term.english}</span>
         </button>
     `}).join('');
+    
+    // Parse emojis with Twemoji
+    if (typeof twemoji !== 'undefined') {
+        twemoji.parse(container);
+    }
 }
 
 // Toggle category tag

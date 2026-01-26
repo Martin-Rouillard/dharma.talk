@@ -362,6 +362,12 @@ header {
     margin-bottom: .5rem;
 }
 
+.category-tag .tag-emoji img.emoji {
+    width: 1.5rem;
+    height: 1.5rem;
+    vertical-align: middle;
+}
+
 .category-tag .tag-pali {
     font-size: 0.75rem;
     font-weight: 500;
