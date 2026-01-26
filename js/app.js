@@ -982,7 +982,7 @@ function handleTalksSearch(value) {
         talksSearchDebounceTimer = setTimeout(() => {
             // Use combined search with category tags
             updateCombinedSearch();
-        }, 300);
+        }, 500);
     }
 }
 

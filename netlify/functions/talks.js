@@ -99,6 +99,19 @@ exports.handler = async (event, context) => {
         if (categories) {
             const categoryTerms = categories.split(/\s+/).filter(term => term.length > 0);
             
+            // Helper function to check if term matches, with special exclusion rules
+            // e.g., "dana" should not match inside "vedana"
+            const matchesTerm = (text, textNorm, term, termNorm) => {
+                // Special case: "dana" should not match "vedana"
+                if (termNorm === 'dana') {
+                    // Use regex with negative lookbehind to exclude "vedana"
+                    const danaRegex = /(?<!ve)dana/gi;
+                    return danaRegex.test(text) || danaRegex.test(textNorm);
+                }
+                // Default: simple substring match
+                return text.includes(term) || textNorm.includes(termNorm);
+            };
+            
             filtered = filtered.filter(t => {
                 const title = (t.title || '').toLowerCase();
                 const titleNorm = title.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -108,10 +121,8 @@ exports.handler = async (event, context) => {
                 // All category terms must match in title OR description (AND logic)
                 return categoryTerms.every(term => {
                     const termNorm = term.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                    return title.includes(term) || 
-                           titleNorm.includes(termNorm) ||
-                           desc.includes(term) ||
-                           descNorm.includes(termNorm);
+                    return matchesTerm(title, titleNorm, term, termNorm) ||
+                           matchesTerm(desc, descNorm, term, termNorm);
                 });
             });
         }
