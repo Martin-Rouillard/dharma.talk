@@ -327,8 +327,8 @@ header {
 
 .category-tag {
     flex-shrink: 0;
-    background: var(--bg-elevated);
-    border: 1px solid transparent;
+    background: transparent;
+    border: 0px solid transparent;
     border-radius: 1rem;
     padding: 0.75rem 1.25rem;
     font-size: 0.8rem;
@@ -345,8 +345,12 @@ header {
 }
 
 .category-tag:hover {
-    background: var(--bg-hover);
+    background: #292929;
     color: var(--text-primary);
+}
+
+.category-tag.active:hover {
+    background: rgba(0, 208, 74, 0.1);
 }
 
 .category-tag.active {
@@ -354,6 +358,8 @@ header {
     color: var(--accent);
     border-color: var(--accent);
     font-weight: 500;
+    background: rgba(0, 208, 74, 0.1);
+
 }
 
 .category-tag .tag-emoji {
@@ -2146,11 +2152,13 @@ h1 {
     }
 
     .playlist-search-input {
-        /* On mobile, no icon column - simpler left padding */
-        padding: 0.75rem 2.5rem 0.75rem 1rem;
+        /* On mobile, keep left padding for icon */
+        padding: 0.75rem 1rem 0.75rem calc(1rem + 24px);
     }
 
-
+    .playlist-search-icon-btn {
+        left: 1rem;
+    }
 
     .vanity-url-btn{
         display: none;
