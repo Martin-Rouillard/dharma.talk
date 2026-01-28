@@ -52,6 +52,9 @@ body::before {
     margin: 0 auto;
     position: relative;
     z-index: 1;
+    gap: 3rem;
+    display: flex;
+    flex-direction: column;
 }
 
 header {
@@ -138,11 +141,11 @@ header {
     display: flex;
     justify-content: space-evenly;
     /* gap: 3vw; */
-    margin: 0 auto;
-    max-width: 800px;
+    /* margin: 0 auto; */
+    /* max-width: 800px; */
     align-items: flex-end;
     align-content: center;
-    padding: 2rem;
+    /* padding: 2rem; */
 }
 
 .tab-column {
@@ -296,7 +299,7 @@ header {
 .category-tags-wrapper {
     position: relative;
     margin: 0 -1rem 0.75rem;
-    padding: 0 1rem;
+    padding: 1rem;
     overflow: hidden;
 }
 
@@ -459,7 +462,6 @@ header {
     background: #4d4d4d0d;
     padding: 0.5rem;
     border-radius: 1rem;
-    margin: 1rem 0 ;
     border: 0px solid #555;
     transition: background 0.2s, box-shadow 0.2s;
     -webkit-backdrop-filter: blur(10px);
@@ -2179,7 +2181,6 @@ h1 {
     }
 
     .tab-menu-dual {
-        padding: 1rem 0;
     }
 
     .talks-section {
