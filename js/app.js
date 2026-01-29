@@ -1024,6 +1024,16 @@ function clearTalksSearch() {
     renderTalksList(false);
     updateTalksSearchIconState();
     talksSearchInput.focus();
+    
+    // Reset suggestion box to initial state
+    suggestionRevealed = false;
+    currentSuggestion = null;
+    const placeholder = document.getElementById('suggestionPlaceholder');
+    const content = document.getElementById('suggestionContent');
+    const refreshBtn = document.getElementById('suggestionRefreshBtn');
+    if (placeholder) placeholder.style.display = 'inline';
+    if (content) content.style.display = 'none';
+    if (refreshBtn) refreshBtn.style.display = 'none';
 }
 
 // Reset talks search and suggestion box

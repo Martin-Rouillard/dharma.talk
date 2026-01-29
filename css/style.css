@@ -157,12 +157,6 @@ header {
     transition: all 0.2s ease;
 }
 
-.tab-column:hover {
-}
-
-.tab-column.active {
-}
-
 .tab-icon {
     font-size: 2.2rem;
     color: #888;
@@ -272,7 +266,6 @@ header {
     position: relative;
     /* margin: 0 .25rem; */
     border-radius: .25rem;
-}  position: relative;
 }
 
 .filter-item:hover {
@@ -444,10 +437,6 @@ header {
 .suggestion-text strong {
     color: var(--accent);
     font-weight: 600;
-}
-
-.suggestion-english {
-
 }
 
 /* Talks Section */
@@ -1512,6 +1501,7 @@ h1 {
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -2194,9 +2184,6 @@ h1 {
 
     .vanity-url-btn{
         display: none;
-    }
-
-    .tab-menu-dual {
     }
 
     .talks-section {
