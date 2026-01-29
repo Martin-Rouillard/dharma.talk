@@ -52,7 +52,6 @@ body::before {
     margin: 0 auto;
     position: relative;
     z-index: 1;
-    gap: 3rem;
     display: flex;
     flex-direction: column;
 }
@@ -141,7 +140,7 @@ header {
     display: flex;
     justify-content: space-evenly;
     /* gap: 3vw; */
-    /* margin: 0 auto; */
+    margin: 3rem 0;
     /* max-width: 800px; */
     align-items: flex-end;
     align-content: center;
@@ -298,7 +297,7 @@ header {
 /* Category Tags (Pali terms filter) */
 .category-tags-wrapper {
     position: relative;
-    margin: 0 -1rem 0.75rem;
+    margin: 0 -1rem 1rem;
     padding: 1rem;
     overflow: hidden;
 }
@@ -335,7 +334,7 @@ header {
     background: #111;
     border: 0px solid transparent;
     border-radius: .5rem;
-    padding: 0.75rem 1.25rem;
+    padding: 0.5rem 1rem;
     font-size: 0.8rem;
     color: var(--text-secondary);
     cursor: pointer;
@@ -456,16 +455,21 @@ header {
 }
 
 .talks-search-section {
+    background: #212121;
+    padding: 0.5rem;
+    border-radius: 1rem;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: #4d4d4d0d;
-    padding: 0.5rem;
-    border-radius: 1rem;
     border: 0px solid #555;
     transition: background 0.2s, box-shadow 0.2s;
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 100;
+    max-width: 600px;
+    width: 100%;
 }
 
 .talks-search-section:focus-within {
@@ -703,10 +707,10 @@ h1 {
 
 /* Search section */
 .search-section {
-    background: #4d4d4d0d;
+    background: #212121;
     padding: 0.5rem;
     border-radius: 1rem;
-    margin: 0 0 1rem;
+    margin: 0 auto 3rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -716,6 +720,8 @@ h1 {
     backdrop-filter: blur(10px);
     position: relative;
     z-index: 100;
+    max-width: 600px;
+    width: 100%;
 }
 
 .search-section:focus-within {
@@ -926,7 +932,7 @@ h1 {
     align-items: center;
     overflow: hidden;
     border-radius: 1rem;
-    margin: 2rem;
+    margin: 0rem;
 }
 
 .teacher-hero-bg {
@@ -939,7 +945,7 @@ h1 {
     /* background-position: center; */
     filter: blur(60px) saturate(1);
     transform: scale(1.5);
-    opacity: 0.6;
+    opacity: 0;
     z-index: 0;
 }
 
@@ -952,6 +958,7 @@ h1 {
     height: 100%;
     background: linear-gradient(transparent 0%, var(--bg-primary) 100%);
     z-index: 1;
+    display: none;
 }
 
 .teacher-hero-content {
@@ -1279,23 +1286,40 @@ h1 {
 
 /* Playlist search */
 .playlist-search {
-    padding: 0 2rem;
-    background: transparent;
-    margin: 1rem 0;      
+    background: #212121;
+    padding: 0.5rem;
+    border-radius: 1rem;
+    margin: 0 auto 3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 0px solid #555;
+    transition: background 0.2s, box-shadow 0.2s;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 100;
+    max-width: 600px;
+    width: 100%;
+}
+
+.playlist-search:focus-within {
+    background: #00000033;
+}
+
+.playlist-search-wrapper {
+    position: relative;
+    flex: 1;
 }
 
 .playlist-search-input {
     width: 100%;
-    /* Match episode: 1rem padding + 40px icon column + 1rem gap = ~56px left padding */
-    padding: 1rem 2.5rem 1rem calc(1rem + 40px + 1rem);
-    background: #00000033;
-    border: 0px solid #555;
-    border-radius: 1rem;
+    padding: 0.75rem 0.5rem;
+    background: transparent;
+    border: none;
     color: var(--text-primary);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-family: inherit;
-    outline: none;
-    transition: all 0.2s;
 }
 
 .playlist-search-input::placeholder {
@@ -1306,23 +1330,24 @@ h1 {
     outline: none;
 }
 
-.playlist-search-wrapper {
-    position: relative;
-}
-
 .playlist-search-icon-btn {
-    position: absolute;
-    left: calc(1rem + 20px - 8px);
-    top: 50%;
-    transform: translateY(-50%);
     background: none;
     border: none;
     padding: 0;
+    margin-left: 0.5rem;
     cursor: pointer;
-    color: var(--text-muted);
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.playlist-search-icon-btn svg {
+    width: 24px;
+    height: 24px;
 }
 
 .playlist-search-icon-btn .icon-clear {
@@ -2165,15 +2190,6 @@ h1 {
 
     .playlist-search {
         padding: 0 0.5rem;
-    }
-
-    .playlist-search-input {
-        /* On mobile, keep left padding for icon */
-        padding: 0.75rem 1rem 0.75rem calc(1rem + 24px);
-    }
-
-    .playlist-search-icon-btn {
-        left: 1rem;
     }
 
     .vanity-url-btn{

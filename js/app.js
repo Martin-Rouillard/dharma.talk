@@ -1838,16 +1838,16 @@ function renderEpisodes(skipAnimation = false) {
     
     content.innerHTML = `
         <div class="playlist-search">
+            <button type="button" class="playlist-search-icon-btn ${episodeSearchQuery ? 'has-text' : ''}" onclick="handleEpisodeSearchIconClick()">
+                <svg class="icon-search" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <svg class="icon-clear" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+            </button>
             <div class="playlist-search-wrapper">
-                <button type="button" class="playlist-search-icon-btn ${episodeSearchQuery ? 'has-text' : ''}" onclick="handleEpisodeSearchIconClick()">
-                    <svg class="icon-search" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <path d="M21 21l-4.35-4.35"/>
-                    </svg>
-                    <svg class="icon-clear" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 6L6 18M6 6l12 12"/>
-                    </svg>
-                </button>
                 <input type="text" 
                        class="playlist-search-input" 
                        placeholder="Search talks..." 
