@@ -473,7 +473,7 @@ header {
 }
 
 .talks-search-section:focus-within {
-    background: #00000033;
+    background: #212121;
 }
 
 .talks-search-section .search-input {
@@ -514,7 +514,7 @@ header {
     cursor: pointer;
     transition: background 0.3s;
     display: grid;
-    grid-template-columns: 48px 1fr auto;
+    grid-template-columns: 64px 1fr auto;
     gap: 1rem;
     align-items: center;
     position: relative;
@@ -555,27 +555,27 @@ header {
 
 .talk-photo-wrapper {
     position: relative;
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
 }
 
 .talk-teacher-photo {
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
 }
 
 .talk-teacher-placeholder {
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     background: var(--bg-elevated);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 1.25rem;
     font-weight: 600;
     color: var(--text-secondary);
     flex-shrink: 0;
@@ -725,8 +725,7 @@ h1 {
 }
 
 .search-section:focus-within {
-    background: #00000033;
-    
+    background: #212121;
 }
 
 .search-icon-btn {
@@ -926,7 +925,7 @@ h1 {
 /* Teacher Hero Section */
 .teacher-hero {
     position: relative;
-    padding: 2rem;
+    padding: 3rem 2rem;
     min-height: 280px;
     display: flex;
     align-items: center;
@@ -1304,7 +1303,7 @@ h1 {
 }
 
 .playlist-search:focus-within {
-    background: #00000033;
+    background: #212121;
 }
 
 .playlist-search-wrapper {
