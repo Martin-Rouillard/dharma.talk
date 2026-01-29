@@ -342,27 +342,124 @@ def load_talk_counts() -> Dict[int, int]:
         return {}
 
 
-def fetch_teachers(limit: Optional[int] = None, talk_counts: Optional[Dict[int, int]] = None) -> List[Teacher]:
-    """Fetch all teachers from the API."""
+def load_talk_stats_from_talks_json() -> Dict[int, dict]:
+    """
+    Load talk counts and last talk dates from dharmaseed_talks.json.
+    This is MUCH faster than fetching RSS feeds for each teacher.
+    Returns dict with {teacher_id: {"count": N, "last_talk_date": "YYYY-MM-DD"}}.
+    """
+    talks_file = os.path.join(SCRIPT_DIR, "dharmaseed_talks.json")
+    
+    try:
+        print(f"Loading talks from {talks_file}...")
+        with open(talks_file, "r", encoding="utf-8") as f:
+            talks = json.load(f)
+        print(f"  Loaded {len(talks)} talks")
+    except FileNotFoundError:
+        print(f"  ERROR: {talks_file} not found!")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"  ERROR: Failed to parse {talks_file}: {e}")
+        return {}
+    
+    # Aggregate stats per teacher
+    teacher_stats: Dict[int, dict] = {}
+    
+    for talk in talks:
+        teacher_id = talk.get("teacher_id")
+        if not teacher_id:
+            continue
+        
+        # Extract date from rec_date (format: "2026-01-26 19:30:00" -> "2026-01-26")
+        rec_date = talk.get("rec_date", "")
+        talk_date = rec_date.split(" ")[0] if rec_date else ""
+        
+        if teacher_id not in teacher_stats:
+            teacher_stats[teacher_id] = {"count": 0, "last_talk_date": ""}
+        
+        teacher_stats[teacher_id]["count"] += 1
+        
+        # Update last_talk_date if this talk is more recent
+        if talk_date and talk_date > teacher_stats[teacher_id]["last_talk_date"]:
+            teacher_stats[teacher_id]["last_talk_date"] = talk_date
+    
+    print(f"  Found stats for {len(teacher_stats)} teachers")
+    total_talks = sum(s["count"] for s in teacher_stats.values())
+    print(f"  Total talks counted: {total_talks}")
+    
+    return teacher_stats
+
+
+def fetch_teachers(limit: Optional[int] = None, talk_stats: Optional[Dict[int, dict]] = None) -> List[Teacher]:
+    """Fetch all teachers from the API with pre-computed talk stats."""
     items = fetch_all_items("teachers", limit=limit)
-    if talk_counts is None:
-        talk_counts = {}
-    teachers = [parse_teacher(item, talk_counts.get(item.get("id", 0), 0)) for item in items]
+    if talk_stats is None:
+        talk_stats = {}
+    
+    teachers = []
+    for item in items:
+        tid = item.get("id", 0)
+        stats = talk_stats.get(tid, {"count": 0, "last_talk_date": ""})
+        teacher = parse_teacher(item, stats.get("count", 0), stats.get("last_talk_date", ""))
+        teachers.append(teacher)
+    
+    teachers.sort(key=lambda t: (t.name.lower(), t.id))
+    return teachers
+
+
+def fetch_teachers_with_local_counts(limit: Optional[int] = None) -> List[Teacher]:
+    """
+    Fetch all teachers using local talks.json for counts (FAST).
+    Only calls API for teacher details (name, photo, bio).
+    This is much faster than the RSS-based approach.
+    """
+    # Step 1: Load talk stats from local file (instant)
+    talk_stats = load_talk_stats_from_talks_json()
+    
+    if not talk_stats:
+        print("WARNING: No talk stats available, falling back to API-only (no counts)")
+    
+    # Step 2: Fetch teacher IDs from API
+    teacher_ids = fetch_item_ids("teachers")
+    if limit:
+        teacher_ids = teacher_ids[:limit]
+    
+    print(f"Fetching {len(teacher_ids)} teachers from API (using local talk counts)...")
+    teachers = []
+    
+    for i, teacher_id in enumerate(teacher_ids):
+        # Fetch teacher details from API
+        data = fetch_item_details("teachers", teacher_id)
+        if not data:
+            continue
+        
+        # Get pre-computed stats from local file
+        stats = talk_stats.get(teacher_id, {"count": 0, "last_talk_date": ""})
+        
+        # Parse and add teacher
+        teacher = parse_teacher(data, stats.get("count", 0), stats.get("last_talk_date", ""))
+        teachers.append(teacher)
+        
+        if (i + 1) % 50 == 0:
+            print(f"  Progress: {i + 1}/{len(teacher_ids)} teachers")
+        
+        time.sleep(0.1)  # Rate limiting for API
+    
+    print(f"  Done: {len(teachers)} teachers fetched")
     teachers.sort(key=lambda t: (t.name.lower(), t.id))
     return teachers
 
 
 def fetch_teachers_with_counts(limit: Optional[int] = None) -> List[Teacher]:
     """
-    Fetch all teachers with talk counts and last talk date in a single pass.
-    For each teacher: fetch API details + count talks from RSS feed.
-    This is faster than separate passes since RSS counting is quick.
+    Legacy: Fetch all teachers with talk counts via RSS feeds (SLOW).
+    Use fetch_teachers_with_local_counts() instead for faster results.
     """
     teacher_ids = fetch_item_ids("teachers")
     if limit:
         teacher_ids = teacher_ids[:limit]
     
-    print(f"Fetching {len(teacher_ids)} teachers with talk counts (single pass)...")
+    print(f"Fetching {len(teacher_ids)} teachers with talk counts via RSS (slow)...")
     teachers = []
     total_talks = 0
     
@@ -428,7 +525,7 @@ def save_to_json(data: List, filename: str, source_type: str):
 
 def main():
     """
-    Main entry point - fetches teachers with talk counts in a single pass.
+    Main entry point - fetches teachers using local talks.json for counts (FAST).
     """
     import sys
     
@@ -446,13 +543,20 @@ def main():
             # Only update teachers using cached counts
             print("Updating teachers only (using cached talk counts)...")
             talk_counts = load_talk_counts()
-            teachers = fetch_teachers(talk_counts=talk_counts)
+            teachers = fetch_teachers(talk_stats=talk_counts)
+            output_file = os.path.join(SCRIPT_DIR, "dharmaseed_teachers.json")
+            save_to_json(teachers, output_file, "teachers")
+            return
+        elif sys.argv[1] == "--rss":
+            # Legacy mode: use RSS feeds for counting (slow)
+            print("Using RSS feeds for talk counts (legacy mode - slow)...")
+            teachers = fetch_teachers_with_counts()
             output_file = os.path.join(SCRIPT_DIR, "dharmaseed_teachers.json")
             save_to_json(teachers, output_file, "teachers")
             return
     
-    # Default: single pass - fetch teachers + count talks together
-    teachers = fetch_teachers_with_counts()
+    # Default: use local talks.json for counts (FAST)
+    teachers = fetch_teachers_with_local_counts()
     output_file = os.path.join(SCRIPT_DIR, "dharmaseed_teachers.json")
     save_to_json(teachers, output_file, "teachers")
     
