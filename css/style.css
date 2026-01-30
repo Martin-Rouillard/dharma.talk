@@ -496,11 +496,13 @@ header {
     flex-direction: column;
     gap: 0.5rem;
     padding-bottom: 150px; /* Space for player */
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .talk-item {
     border-radius: 1rem;
-    padding: 1rem;
+    padding: 2vw;
     cursor: pointer;
     transition: background 0.3s;
     display: block;
