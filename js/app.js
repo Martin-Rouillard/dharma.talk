@@ -684,8 +684,16 @@ function getHighlightQuery() {
     return parts.join(' ');
 }
 
-// Highlight search terms in text (substring matching, supports diacritics)
-function highlightSearchTerms(text, searchQuery) {
+// Convert URLs in text to clickable links
+function linkifyUrls(text) {
+    if (!text) return '';
+    // Match URLs starting with http:// or https://
+    const urlPattern = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
+    return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation(); return true;">$1</a>');
+}
+
+// Highlight search terms in text, preserving HTML tags
+function highlightSearchTerms(text, searchQuery, preserveHtml = false) {
     if (!text || !searchQuery || searchQuery.length < 2) return text || '';
     const words = normalizeDiacritics(searchQuery.toLowerCase()).split(/\s+/).filter(w => w.length > 0);
     if (words.length === 0) return text;
@@ -888,7 +896,7 @@ async function renderTalksList(append = false) {
         return `
             <div class="talk-item ${isPlaying ? 'playing' : ''}" 
                  data-id="${talk.id}"
-                 onclick="playTalkFromList(${talk.id})">
+                 onclick="playTalkFromList(event, ${talk.id})">
                 ${photoUrl ? `<div class="bg-blur" style="background-image: url('${photoUrl}')"></div>` : ''}
                 <div class="talk-main">
                     <div class="talk-teacher-row">
@@ -915,7 +923,7 @@ async function renderTalksList(append = false) {
                         ${talk.recording_type ? `<span class="recording-type-badge">${talk.recording_type}</span>` : ''}
                     </div>
                     <div class="talk-title">${highlightSearchTerms(talk.title, getHighlightQuery())}</div>
-                    ${talk.description ? `<div class="talk-description">${highlightSearchTerms(talk.description, getHighlightQuery())}</div>` : ''}
+                    ${talk.description ? `<div class="talk-description">${linkifyUrls(talk.description)}</div>` : ''}
                 </div>
             </div>
         `;
@@ -932,7 +940,10 @@ async function renderTalksList(append = false) {
 }
 
 // Play talk from the talks list
-function playTalkFromList(talkId) {
+function playTalkFromList(event, talkId) {
+    // If clicked on a link, don't play
+    if (event && event.target.closest('a')) return;
+    
     // Search in sortedTalks (current displayed results)
     const talk = sortedTalks.find(t => t.id === talkId);
     if (!talk) return;
@@ -1881,7 +1892,7 @@ function renderEpisodes(skipAnimation = false) {
                     return `
                     <div class="episode ${currentEpisode?.id === ep.id ? 'playing' : ''}" 
                          data-id="${ep.id}"
-                         onclick="playEpisode(${ep.id})"
+                         onclick="playEpisode(event, ${ep.id})"
                          style="${skipAnimation ? 'animation: none;' : `animation-delay: ${Math.min(i * 0.03, 0.3)}s`}">
                         <div class="episode-number">${originalIndex + 1}</div>
                         <div class="episode-play-icon">
@@ -1891,7 +1902,7 @@ function renderEpisodes(skipAnimation = false) {
                         </div>
                         <div class="episode-main">
                             <div class="episode-title">${highlightSearchTerms(stripTeacherPrefix(ep.title), episodeSearchQuery)}</div>
-                            ${ep.description ? `<div class="talk-description">${highlightSearchTerms(ep.description, episodeSearchQuery)}</div>` : ''}
+                            ${ep.description ? `<div class="talk-description">${linkifyUrls(ep.description)}</div>` : ''}
                             <div class="episode-meta">
                                 <span>${highlightSearchTerms(formatDate(ep.pubDate), episodeSearchQuery)}</span>
                                 ${recordingType ? `<span class="recording-type-badge">${highlightSearchTerms(recordingType, episodeSearchQuery)}</span>` : ''}
@@ -2020,7 +2031,19 @@ function loadMoreTeachers() {
 // Track pending play request to debounce rapid switches
 let pendingPlayRequest = null;
 
-function playEpisode(id, autoPlay = true) {
+function playEpisode(eventOrId, autoPlayOrId = true) {
+    // Handle both old signature (id, autoPlay) and new signature (event, id)
+    let id, autoPlay = true;
+    if (typeof eventOrId === 'object' && eventOrId?.target) {
+        // New signature: (event, id)
+        if (eventOrId.target.closest('a')) return; // Clicked on a link
+        id = autoPlayOrId;
+    } else {
+        // Old signature: (id, autoPlay)
+        id = eventOrId;
+        autoPlay = autoPlayOrId;
+    }
+    
     debugAudioLog('[playEpisode] starting', id);
     const episode = episodes.find(ep => ep.id === id);
     if (!episode) return;

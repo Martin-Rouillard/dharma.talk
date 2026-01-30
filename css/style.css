@@ -8,7 +8,7 @@
     --bg-primary: #000;
     --bg-secondary: #181818;
     --bg-elevated: #282828;
-    --bg-card: #1e1e1e;
+    --bg-card: #1e1e1e25;
     --bg-highlight: #00000066;
     --text-primary: #ffffff;
     --text-secondary: #ccc;
@@ -595,7 +595,7 @@ header {
 
 .talk-item.playing .talk-play-wrapper {
     opacity: 1;
-    background: rgba(0, 208, 74, 0.3);
+    backdrop-filter: blur(5px) brightness(0.8);
 }
 
 .talk-play-wrapper svg {
@@ -691,6 +691,19 @@ header {
     line-height: 1.4;
     white-space: normal;
     word-wrap: break-word;
+}
+
+.talk-description a {
+    color: #777;
+    text-decoration: none;
+    word-break: break-all;
+    position: relative;
+    z-index: 10;
+}
+
+.talk-description a:hover {
+    text-decoration: underline;
+    color: #fff;
 }
 
 /* Row 4: Duration */
@@ -1489,6 +1502,7 @@ h1 {
     background: linear-gradient(135deg, rgba(29, 185, 84, 0) 0%, transparent 50%);
     opacity: 0;
     transition: opacity 0.3s;
+    pointer-events: none;
 }
 
 .episode:hover {
