@@ -23,39 +23,80 @@
             cursor: pointer;
             transition: background 0.3s;
             animation: slideUp 0.4s ease backwards;
-            display: grid;
-            grid-template-columns: 48px 1fr auto;
-            gap: 1rem;
-            align-items: center;
+            display: block;
             position: relative;
             overflow: hidden;
+            background: #111;
         }
 
         .talk-item:hover {
-            background: #00000033;
+            background: var(--bg-card);
         }
 
         .talk-item.playing {
             box-shadow: inset 0 0 0 1px var(--accent);
         }
 
+        /* Play icon overlay on teacher photo */
+        .talk-play-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .talk-item:hover .talk-play-wrapper {
+            opacity: 1;
+        }
+
+        .talk-play-wrapper svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+            transition: fill 0.2s;
+        }
+
+        .talk-item.playing .talk-play-wrapper {
+            opacity: 1;
+            background: rgba(0, 208, 74, 0.3);
+        }
+
+        .talk-item.playing .talk-play-wrapper svg {
+            fill: var(--accent);
+        }
+
+        .talk-photo-wrapper {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+        }
+
         .talk-teacher-photo {
-            width: 48px;
-            height: 48px;
+            width: 64px;
+            height: 64px;
             border-radius: 50%;
             object-fit: cover;
             flex-shrink: 0;
         }
 
         .talk-teacher-placeholder {
-            width: 48px;
-            height: 48px;
+            width: 64px;
+            height: 64px;
             border-radius: 50%;
             background: var(--bg-elevated);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
+            font-size: 1.25rem;
             font-weight: 600;
             color: var(--text-secondary);
             flex-shrink: 0;
@@ -63,42 +104,51 @@
 
         .talk-main {
             min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
 
+        /* Row 1: Teacher info with photo */
+        .talk-teacher-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            justify-content: space-between;
+        }
+
+        .talk-teacher-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+            min-width: 0;
+        }
+
+        .talk-teacher-name {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .talk-teacher-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        /* Row 2: Title */
         .talk-title {
             font-size: 1rem;
             font-weight: 500;
             color: var(--text-primary);
-            margin-bottom: 0.25rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
 
         .talk-item.playing .talk-title {
             color: var(--accent);
         }
 
-        .talk-meta {
-            display: flex;
-            gap: 0.5rem;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .talk-teacher-name {
-            color: var(--text-secondary);
-        }
-
-        .talk-right {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 0.25rem;
-        }
-
+        /* Row 3: Duration */
         .talk-duration {
             font-size: 0.85rem;
             color: var(--text-muted);
@@ -106,7 +156,7 @@
         }
 
         .talk-date {
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
         }
 
@@ -141,45 +191,7 @@
             font-size: 0.7rem;
             color: var(--text-secondary);
             text-transform: capitalize;
-        }
-
-        /* Play icon overlay on hover */
-        .talk-photo-wrapper {
-            position: relative;
-            width: 48px;
-            height: 48px;
-        }
-
-        .talk-play-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 50%;
-            display: none;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .talk-item:hover .talk-play-overlay {
-            display: flex;
-        }
-
-        .talk-play-overlay svg {
-            width: 20px;
-            height: 20px;
-            fill: white;
-        }
-
-        .talk-item.playing .talk-play-overlay {
-            display: flex;
-            background: rgba(0, 208, 74, 0.3);
-        }
-
-        .talk-item.playing .talk-play-overlay svg {
-            fill: var(--accent);
+            flex-shrink: 0;
         }
     </style>
 </head>
@@ -433,27 +445,31 @@
                                  data-id="${talk.id}"
                                  onclick="playTalk(${talk.id})"
                                  style="animation-delay: ${Math.min(i * 0.03, 0.3)}s">
-                                <div class="talk-photo-wrapper">
-                                    ${photoUrl 
-                                        ? `<img src="${photoUrl}" alt="${teacherName}" class="talk-teacher-photo" onerror="this.outerHTML='<div class=\\'talk-teacher-placeholder\\'>${initials}</div>'">`
-                                        : `<div class="talk-teacher-placeholder">${initials}</div>`
-                                    }
-                                    <div class="talk-play-overlay">
-                                        <svg viewBox="0 0 24 24">
-                                            <polygon points="5,3 19,12 5,21"/>
-                                        </svg>
-                                    </div>
-                                </div>
                                 <div class="talk-main">
-                                    <div class="talk-title">${talk.title}</div>
-                                    <div class="talk-meta">
-                                        <span class="talk-teacher-name">${teacherName}</span>
+                                    <div class="talk-teacher-row">
+                                        <div class="talk-photo-wrapper">
+                                            ${photoUrl 
+                                                ? `<img src="${photoUrl}" alt="${teacherName}" class="talk-teacher-photo" onerror="this.outerHTML='<div class=\\'talk-teacher-placeholder\\'>${initials}</div>'">`
+                                                : `<div class="talk-teacher-placeholder">${initials}</div>`
+                                            }
+                                            <div class="talk-play-wrapper">
+                                                <svg viewBox="0 0 24 24">
+                                                    <polygon points="5,3 19,12 5,21"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <div class="talk-teacher-info">
+                                            <div class="talk-teacher-meta">
+                                                <span class="talk-date">${formatDate(talk.rec_date)}</span>
+                                                <span class="talk-duration">${formatDuration(talk.duration_in_minutes)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="talk-title-row">
+                                        <span class="talk-title-teacher">${teacherName}</span>
                                         ${talk.recording_type ? `<span class="recording-type-badge">${talk.recording_type}</span>` : ''}
                                     </div>
-                                </div>
-                                <div class="talk-right">
-                                    <span class="talk-duration">${formatDuration(talk.duration_in_minutes)}</span>
-                                    <span class="talk-date">${formatDate(talk.rec_date)}</span>
+                                    <div class="talk-title">${talk.title}</div>
                                 </div>
                             </div>
                         `;

@@ -890,28 +890,32 @@ async function renderTalksList(append = false) {
                  data-id="${talk.id}"
                  onclick="playTalkFromList(${talk.id})">
                 ${photoUrl ? `<div class="bg-blur" style="background-image: url('${photoUrl}')"></div>` : ''}
-                <div class="talk-photo-wrapper">
-                    ${photoUrl 
-                        ? `<img src="${photoUrl}" alt="${teacherName}" class="talk-teacher-photo" onerror="this.outerHTML='<div class=\\'talk-teacher-placeholder\\'>${initials}</div>'">`
-                        : `<div class="talk-teacher-placeholder">${initials}</div>`
-                    }
-                    <div class="talk-play-overlay">
-                        <svg viewBox="0 0 24 24">
-                            <polygon points="5,3 19,12 5,21"/>
-                        </svg>
-                    </div>
-                </div>
                 <div class="talk-main">
-                    <div class="talk-title">${highlightSearchTerms(talk.title, getHighlightQuery())}</div>
-                    ${talk.description ? `<div class="talk-description">${highlightSearchTerms(talk.description, getHighlightQuery())}</div>` : ''}
-                    <div class="talk-meta">
-                        <span class="talk-teacher-name" onclick="event.stopPropagation(); selectTeacher(${talk.teacher_id})">${highlightSearchTerms(teacherName, talksSearchQuery)}</span>
+                    <div class="talk-teacher-row">
+                        <div class="talk-photo-wrapper">
+                            ${photoUrl 
+                                ? `<img src="${photoUrl}" alt="${teacherName}" class="talk-teacher-photo" onerror="this.outerHTML='<div class=\\'talk-teacher-placeholder\\'>${initials}</div>'">`
+                                : `<div class="talk-teacher-placeholder">${initials}</div>`
+                            }
+                            <div class="talk-play-wrapper">
+                                <svg viewBox="0 0 24 24">
+                                    <polygon points="5,3 19,12 5,21"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="talk-teacher-info">
+                            <div class="talk-teacher-meta">
+                                <span class="talk-date">${highlightSearchTerms(formatTalkDate(talk.rec_date), talksSearchQuery)}</span>
+                                <span class="talk-duration">${formatTalkDuration(talk.duration_in_minutes)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="talk-title-row">
+                        <span class="talk-title-teacher">${highlightSearchTerms(teacherName, talksSearchQuery)}</span>
                         ${talk.recording_type ? `<span class="recording-type-badge">${talk.recording_type}</span>` : ''}
                     </div>
-                </div>
-                <div class="talk-right">
-                    <span class="talk-duration">${formatTalkDuration(talk.duration_in_minutes)}</span>
-                    <span class="talk-date">${highlightSearchTerms(formatTalkDate(talk.rec_date), talksSearchQuery)}</span>
+                    <div class="talk-title">${highlightSearchTerms(talk.title, getHighlightQuery())}</div>
+                    ${talk.description ? `<div class="talk-description">${highlightSearchTerms(talk.description, getHighlightQuery())}</div>` : ''}
                 </div>
             </div>
         `;
