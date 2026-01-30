@@ -405,6 +405,7 @@ header {
     border-radius: 1rem;
     justify-content: center;
     gap: 0.25rem;
+    padding: 1rem;
 }
 
 .suggestion-refresh {
@@ -502,7 +503,7 @@ header {
 
 .talk-item {
     border-radius: 1rem;
-    padding: 2vw;
+    padding: min(4vw, 2rem);
     cursor: pointer;
     transition: background 0.3s;
     display: block;
