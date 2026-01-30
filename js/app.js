@@ -684,12 +684,26 @@ function getHighlightQuery() {
     return parts.join(' ');
 }
 
-// Convert URLs in text to clickable links
-function linkifyUrls(text) {
+// Convert URLs in text to clickable links, with optional search highlighting for non-URL text
+function linkifyUrls(text, searchQuery = null) {
     if (!text) return '';
     // Match URLs starting with http:// or https://
     const urlPattern = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/gi;
-    return text.replace(urlPattern, '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation(); return true;">$1</a>');
+    
+    // Split text by URLs
+    const parts = text.split(urlPattern);
+    
+    return parts.map((part, i) => {
+        // Odd indices are URL matches
+        if (i % 2 === 1) {
+            return `<a href="${part}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation(); return true;">${part}</a>`;
+        }
+        // Even indices are regular text - apply highlighting if search query provided
+        if (searchQuery) {
+            return highlightSearchTerms(part, searchQuery);
+        }
+        return part;
+    }).join('');
 }
 
 // Highlight search terms in text, preserving HTML tags
@@ -923,7 +937,7 @@ async function renderTalksList(append = false) {
                         ${talk.recording_type ? `<span class="recording-type-badge">${talk.recording_type}</span>` : ''}
                     </div>
                     <div class="talk-title">${highlightSearchTerms(talk.title, getHighlightQuery())}</div>
-                    ${talk.description ? `<div class="talk-description">${linkifyUrls(talk.description)}</div>` : ''}
+                    ${talk.description ? `<div class="talk-description">${linkifyUrls(talk.description, getHighlightQuery())}</div>` : ''}
                 </div>
             </div>
         `;
@@ -1902,7 +1916,7 @@ function renderEpisodes(skipAnimation = false) {
                         </div>
                         <div class="episode-main">
                             <div class="episode-title">${highlightSearchTerms(stripTeacherPrefix(ep.title), episodeSearchQuery)}</div>
-                            ${ep.description ? `<div class="talk-description">${linkifyUrls(ep.description)}</div>` : ''}
+                            ${ep.description ? `<div class="talk-description">${linkifyUrls(ep.description, episodeSearchQuery)}</div>` : ''}
                             <div class="episode-meta">
                                 <span>${highlightSearchTerms(formatDate(ep.pubDate), episodeSearchQuery)}</span>
                                 ${recordingType ? `<span class="recording-type-badge">${highlightSearchTerms(recordingType, episodeSearchQuery)}</span>` : ''}
